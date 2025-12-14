@@ -1,6 +1,9 @@
 import sys
 import asyncio
 from agentscope.message import Msg
+from prompt_toolkit import PromptSession
+from prompt_toolkit.completion import WordCompleter
+from prompt_toolkit.styles import Style
 
 def print_help():
     print("\nAvailable Commands:")
@@ -28,18 +31,30 @@ async def handle_command(command, agent):
 
 async def run_console_loop(agent):
     """
-    Runs an interactive console chat loop with the given agent.
+    Runs an interactive console chat loop with the given agent using prompt_toolkit.
     """
     print("\n--- Passion AI Agent Console ---")
     print("Type '/help' for a list of commands.")
     print("Type '/exit' or '/quit' to end the session.\n")
 
+    # Define commands for autocompletion
+    commands = ['/help', '/status', '/exit', '/quit']
+    command_completer = WordCompleter(commands, ignore_case=True)
+
+    # Create a prompt session with history support (in-memory for now)
+    session = PromptSession(completer=command_completer)
+
     while True:
         try:
-            user_input = input("User: ").strip()
+            # Use session.prompt async if possible, but prompt_toolkit async support
+            # requires integration with the event loop. PromptSession.prompt_async() 
+            # is the method.
+            user_input = await session.prompt_async("User: ")
         except (EOFError, KeyboardInterrupt):
             print("\nExiting...")
             break
+
+        user_input = user_input.strip()
 
         if not user_input:
             continue

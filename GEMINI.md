@@ -1,13 +1,14 @@
 # Project Context: Passion AI Agent
 
 ## Project Overview
-This directory contains the "Passion" AI agent project, a modular Python application built on top of **AgentScope**. It is designed to be an enthusiastic and energetic AI assistant that runs from the command line, offering an interactive chat experience with command support.
+This directory contains the "Passion" AI agent project, a modular Python application built on top of **AgentScope**. It is designed to be an enthusiastic and energetic AI assistant that runs from the command line, offering an interactive chat experience with command support and autocompletion.
 
 ## Key Technologies
 *   **Language:** Python 3.12
 *   **Virtual Environment:** `.venv` (Standard Python `venv`)
 *   **Key Libraries:**
     *   **AgentScope:** Multi-agent platform.
+    *   **Prompt Toolkit:** For interactive CLI features (autocompletion, history).
     *   **NumPy:** For numerical operations.
     *   **Matplotlib:** For visualizations.
     *   **Pillow (PIL):** For image processing.
@@ -25,7 +26,7 @@ This directory contains the "Passion" AI agent project, a modular Python applica
         *   `config/`: Configuration loading logic (`loader.py`).
         *   `log/`: Logging configuration (`manager.py`).
         *   `prompt/`: Prompt definitions (`system.py`).
-        *   `interface/`: User interface components (`cli.py` for console interaction).
+        *   `interface/`: User interface components (`cli.py` using `prompt_toolkit`).
         *   `utils/`: Utility functions (`common.py`).
 
 ## Building and Running
@@ -44,10 +45,12 @@ Once installed, you can run the agent directly from the command line:
 passion
 ```
 
-**Commands:**
-*   `/help`: Show available commands.
-*   `/status`: Show agent status (e.g., model name, messages processed).
-*   `/quit` or `/exit`: Exit the session.
+**Features:**
+*   **Slash Commands:** Type `/` to see available commands with autocompletion.
+    *   `/help`: Show available commands.
+    *   `/status`: Show agent status (e.g., model name, messages processed).
+    *   `/quit` or `/exit`: Exit the session.
+*   **History:** Use Up/Down arrows to navigate command history.
 
 **Options:**
 *   `--log-level`: Set the logging level for console output (default: `WARNING`).

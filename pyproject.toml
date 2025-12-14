@@ -6,6 +6,7 @@ readme = "GEMINI.md"
 requires-python = ">=3.12"
 dependencies = [
     "agentscope",
+    "prompt_toolkit",
 ]
 
 [project.scripts]
