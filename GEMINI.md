@@ -27,7 +27,7 @@ This directory contains the "Passion" AI agent project, a modular Python applica
         *   `log/`: Logging configuration (`manager.py`).
         *   `prompt/`: Prompt definitions (`system.py`).
         *   `interface/`: User interface components (`cli.py` using `prompt_toolkit`).
-        *   `tools/`: Tool definitions and registry (`registry.py`, `planning.py`).
+        *   `tools/`: Tool definitions and registry (`registry.py`, `planning.py`, `file_tools.py`).
         *   `utils/`: Utility functions (`common.py`).
 
 ## Building and Running
@@ -56,7 +56,7 @@ passion
     *   **Enter** selects the highlighted suggestion without submitting.
 *   **Integrated Tools:**
     *   **Code Execution:** Python (`execute_python_code`) and Shell (`execute_shell_command`).
-    *   **File Operations:** Read/Write text files.
+    *   **File Operations:** Custom `write_text_file` and `view_text_file` for robust file handling.
     *   **Planning:** The agent can create, track, and update step-by-step plans for complex tasks.
         *   Real-time plan progress is displayed as tool results.
 *   **Rich Output:**
