@@ -47,8 +47,23 @@ async def handle_command(command, agent):
 
 async def run_console_loop(agent):
     """
-    Runs an interactive console chat loop with the given agent using prompt_toolkit.
+    Runs an interactive or non-interactive console chat loop with the given agent.
     """
+
+    # Check if input is coming from a pipe
+    if not sys.stdin.isatty():
+        # Non-interactive mode: read from stdin
+        user_input = sys.stdin.read().strip()
+        if user_input:
+            msg = Msg(name="User", role="user", content=user_input)
+            try:
+                # The agent.reply method is async and handles printing via streaming
+                await agent.reply(msg)
+            except Exception as e:
+                print(f"\nError: {e}\n")
+        return
+
+    # Interactive mode
     print("\n--- Passion AI Agent Console ---")
     print("Type '/help' for a list of commands.")
     print("Type '/exit' or '/quit' to end the session.\n")
@@ -58,7 +73,7 @@ async def run_console_loop(agent):
     # Custom pattern to include '/' as part of the word
     word_pattern = re.compile(r'^([a-zA-Z0-9_/]+)$')
     base_completer = WordCompleter(commands, ignore_case=True, pattern=word_pattern)
-    
+
     # Wrap with conditional completer
     command_completer = SlashCommandCompleter(base_completer)
 
@@ -74,15 +89,15 @@ async def run_console_loop(agent):
 
     # Create a prompt session with history support and live autocompletion
     session = PromptSession(
-        completer=command_completer, 
-        key_bindings=kb, 
+        completer=command_completer,
+        key_bindings=kb,
         complete_while_typing=True
     )
 
     while True:
         try:
             # Use session.prompt async if possible, but prompt_toolkit async support
-            # requires integration with the event loop. PromptSession.prompt_async() 
+            # requires integration with the event loop. PromptSession.prompt_async()
             # is the method.
             user_input = await session.prompt_async("User: ")
         except (EOFError, KeyboardInterrupt):
@@ -100,14 +115,14 @@ async def run_console_loop(agent):
             if not should_continue:
                 break
             continue
-            
+
         # Also handle bare exit/quit for convenience
         if user_input.lower() in ["exit", "quit"]:
              print("Passion: See you later! Keep that energy up!")
              break
 
         msg = Msg(name="User", role="user", content=user_input)
-        
+
         try:
             # The agent.reply method is async and handles printing via streaming
             await agent.reply(msg)
