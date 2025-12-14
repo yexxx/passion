@@ -1,12 +1,14 @@
 from agentscope.agent import AgentBase
 from agentscope.message import Msg
+from agentscope.tool import Toolkit
 
 class PassionAgent(AgentBase):
-    def __init__(self, name: str, sys_prompt: str, llm):
-        super().__init__()
-        self.name = name
-        self.sys_prompt = sys_prompt
-        self.llm = llm # The language model instance
+    def __init__(self, name: str, sys_prompt: str, llm, toolkit: Toolkit = None):
+        # Pass the tool schemas to the base agent, if a toolkit is provided
+        # AgentScope expects tools as a list of dicts (JSON schemas)
+        tools_schemas = toolkit.get_json_schemas() if toolkit else None
+        super().__init__(name=name, sys_prompt=sys_prompt, llm=llm, tools=tools_schemas)
+        self.toolkit = toolkit # Store the toolkit instance
         self.msg_count = 0
 
     async def reply(self, msg: Msg) -> Msg:
@@ -18,9 +20,10 @@ class PassionAgent(AgentBase):
         ]
         
         # Call the LLM
-        response = await self.llm(messages)
-        
-        # Extract text content
+        # Pass the toolkit for function calling if available
+        response = await self.llm(messages, tools=self.toolkit) # Pass the toolkit to LLM
+
+        # Extract text content (handle ToolResponse if any)
         text_content = ""
         if isinstance(response.content, list):
             for block in response.content:
@@ -41,5 +44,6 @@ class PassionAgent(AgentBase):
         return {
             "name": self.name,
             "model": getattr(self.llm, "model_name", "Unknown"),
-            "messages_processed": self.msg_count
+            "messages_processed": self.msg_count,
+            "tools_registered": len(self.toolkit.get_json_schemas()) if self.toolkit else 0
         }

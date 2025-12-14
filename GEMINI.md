@@ -1,13 +1,13 @@
 # Project Context: Passion AI Agent
 
 ## Project Overview
-This directory contains the "Passion" AI agent project, a modular Python application built on top of **AgentScope**. It is designed to be an enthusiastic and energetic AI assistant that runs from the command line, offering an interactive chat experience with command support and autocompletion.
+This directory contains the "Passion" AI agent project, a modular Python application built on top of **AgentScope**. It is designed to be an enthusiastic and energetic AI assistant that runs from the command line, offering an interactive chat experience with command support, autocompletion, and integrated tools.
 
 ## Key Technologies
 *   **Language:** Python 3.12
 *   **Virtual Environment:** `.venv` (Standard Python `venv`)
 *   **Key Libraries:**
-    *   **AgentScope:** Multi-agent platform.
+    *   **AgentScope:** Multi-agent platform (with integrated tools).
     *   **Prompt Toolkit:** For interactive CLI features (autocompletion, history).
     *   **NumPy:** For numerical operations.
     *   **Matplotlib:** For visualizations.
@@ -27,6 +27,7 @@ This directory contains the "Passion" AI agent project, a modular Python applica
         *   `log/`: Logging configuration (`manager.py`).
         *   `prompt/`: Prompt definitions (`system.py`).
         *   `interface/`: User interface components (`cli.py` using `prompt_toolkit`).
+        *   `tools/`: Tool definitions and registry (`registry.py`).
         *   `utils/`: Utility functions (`common.py`).
 
 ## Building and Running
@@ -48,11 +49,12 @@ passion
 **Features:**
 *   **Slash Commands:** Type `/` to trigger autocompletion for commands.
     *   `/help`: Show available commands.
-    *   `/status`: Show agent status (e.g., model name, messages processed).
+    *   `/status`: Show agent status (e.g., model name, messages processed, tools registered).
     *   `/quit` or `/exit`: Exit the session.
 *   **Autocomplete UX:**
     *   Only triggers when typing a command (starting with `/`).
     *   **Enter** selects the highlighted suggestion without submitting.
+*   **Integrated Tools:** The agent has access to various tools (e.g., code execution, file operations) which it can use to respond to queries.
 *   **History:** Use Up/Down arrows to navigate command history.
 
 **Options:**
@@ -86,4 +88,4 @@ The application looks for `config.json` in the following order:
 
 *   **Code Style:** Adhere to [PEP 8](https://peps.python.org/pep-0008/) guidelines.
 *   **Type Hinting:** Utilize Python's type hinting system.
-*   **Modularity:** Keep components (agents, config, prompts, interface) in their respective modules under `src/passion`.
+*   **Modularity:** Keep components (agents, config, prompts, interface, tools) in their respective modules under `src/passion`.

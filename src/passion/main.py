@@ -12,6 +12,7 @@ from passion.agent.passion_agent import PassionAgent
 from passion.log.manager import setup_logging
 from passion.utils.common import get_passion_dir
 from passion.interface.cli import run_console_loop
+from passion.tools.registry import get_registered_tools
 
 logger = logging.getLogger(__name__)
 
@@ -50,8 +51,11 @@ def main():
         stream=False
     )
 
+    # Get registered tools
+    registered_tools = get_registered_tools()
+
     # Create the Passion agent
-    passion = PassionAgent(name="Passion", sys_prompt=PASSION_AGENT_SYSTEM_PROMPT, llm=llm_model)
+    passion = PassionAgent(name="Passion", sys_prompt=PASSION_AGENT_SYSTEM_PROMPT, llm=llm_model, toolkit=registered_tools)
 
     # Start the interactive console loop
     try:
