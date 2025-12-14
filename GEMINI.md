@@ -1,14 +1,14 @@
 # Project Context: Passion AI Agent
 
 ## Project Overview
-This directory contains the "Passion" AI agent project, a modular Python application built on top of **AgentScope**. It is designed to be an enthusiastic and energetic AI assistant that runs from the command line, offering an interactive chat experience with command support, autocompletion, and integrated tools.
+This directory contains the "Passion" AI agent project, a modular Python application built on top of **AgentScope**. It is designed to be an enthusiastic and energetic AI assistant that runs from the command line, offering an interactive chat experience with command support, autocompletion, integrated tools, and rich output formatting.
 
 ## Key Technologies
 *   **Language:** Python 3.12
 *   **Virtual Environment:** `.venv` (Standard Python `venv`)
 *   **Key Libraries:**
     *   **AgentScope:** Multi-agent platform (with integrated tools and ReAct capabilities).
-    *   **Prompt Toolkit:** For interactive CLI features (autocompletion, history).
+    *   **Prompt Toolkit:** For interactive CLI features (autocompletion, history, styling).
     *   **NumPy:** For numerical operations.
     *   **Matplotlib:** For visualizations.
     *   **Pillow (PIL):** For image processing.
@@ -56,7 +56,8 @@ passion
     *   **Enter** selects the highlighted suggestion without submitting.
 *   **Integrated Tools:** The agent has access to various tools (e.g., code execution, file operations).
     *   Tools are registered via `Toolkit`.
-    *   Tool execution is visualized with friendly icons (e.g., 🛠️, ✅) and detailed, formatted input display.
+    *   Tool execution is visualized with colored output (Yellow for tool use, Green for success) and detailed input display (Gray for code/inputs).
+*   **Rich Output:** The agent's responses and tool activities are styled with colors for better readability (Passion's name in Cyan, Tool logs in distinct colors).
 *   **History:** Use Up/Down arrows to navigate command history.
 
 **Options:**
