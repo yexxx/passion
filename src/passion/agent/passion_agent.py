@@ -4,10 +4,11 @@ from agentscope.tool import Toolkit
 
 class PassionAgent(AgentBase):
     def __init__(self, name: str, sys_prompt: str, llm, toolkit: Toolkit = None):
-        # Pass the tool schemas to the base agent, if a toolkit is provided
-        # AgentScope expects tools as a list of dicts (JSON schemas)
-        tools_schemas = toolkit.get_json_schemas() if toolkit else None
-        super().__init__(name=name, sys_prompt=sys_prompt, llm=llm, tools=tools_schemas)
+        # AgentBase.__init__ takes no arguments
+        super().__init__()
+        self.name = name
+        self.sys_prompt = sys_prompt
+        self.llm = llm # The language model instance
         self.toolkit = toolkit # Store the toolkit instance
         self.msg_count = 0
 
