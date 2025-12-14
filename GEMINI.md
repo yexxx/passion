@@ -46,13 +46,13 @@ passion
 ```
 
 **Features:**
-*   **Slash Commands:** Type `/` to see available commands with autocompletion (supports partial matches like `/e` -> `/exit`).
+*   **Slash Commands:** Type `/` to trigger autocompletion for commands.
     *   `/help`: Show available commands.
     *   `/status`: Show agent status (e.g., model name, messages processed).
     *   `/quit` or `/exit`: Exit the session.
 *   **Autocomplete UX:**
-    *   Suggestions appear as you type.
-    *   **Enter** selects the highlighted suggestion without submitting. Press **Enter** again to submit.
+    *   Only triggers when typing a command (starting with `/`).
+    *   **Enter** selects the highlighted suggestion without submitting.
 *   **History:** Use Up/Down arrows to navigate command history.
 
 **Options:**

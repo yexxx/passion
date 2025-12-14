@@ -3,10 +3,23 @@ import asyncio
 import re
 from agentscope.message import Msg
 from prompt_toolkit import PromptSession
-from prompt_toolkit.completion import WordCompleter
+from prompt_toolkit.completion import WordCompleter, Completer
 from prompt_toolkit.styles import Style
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.filters import completion_is_selected
+
+class SlashCommandCompleter(Completer):
+    """
+    Only triggers completion if the input starts with a slash.
+    """
+    def __init__(self, completer):
+        self.completer = completer
+
+    def get_completions(self, document, complete_event):
+        text = document.text_before_cursor.lstrip()
+        # Only complete if we are starting a command
+        if text.startswith('/'):
+            yield from self.completer.get_completions(document, complete_event)
 
 def print_help():
     print("\nAvailable Commands:")
@@ -44,7 +57,10 @@ async def run_console_loop(agent):
     commands = ['/help', '/status', '/exit', '/quit']
     # Custom pattern to include '/' as part of the word
     word_pattern = re.compile(r'^([a-zA-Z0-9_/]+)$')
-    command_completer = WordCompleter(commands, ignore_case=True, pattern=word_pattern)
+    base_completer = WordCompleter(commands, ignore_case=True, pattern=word_pattern)
+    
+    # Wrap with conditional completer
+    command_completer = SlashCommandCompleter(base_completer)
 
     # Key bindings to prevent Enter from submitting when a completion is selected
     kb = KeyBindings()
