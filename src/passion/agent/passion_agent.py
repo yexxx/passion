@@ -132,6 +132,23 @@ class PassionAgent(ReActAgent):
                     if result_key not in self._printed_block_ids[msg_id]:
                         tool_name = block.get("name")
                         print_formatted_text(HTML(f"\n<b><ansigreen>✅ Tool {tool_name} executed successfully.</ansigreen></b>"))
+                        
+                        # Print Tool Output (e.g. Plan content)
+                        tool_output = block.get("output")
+                        output_text = ""
+                        if isinstance(tool_output, list):
+                            for out_block in tool_output:
+                                if isinstance(out_block, dict) and out_block.get("type") == "text":
+                                    output_text += out_block.get("text", "")
+                                elif isinstance(out_block, str):
+                                    output_text += out_block
+                        elif isinstance(tool_output, str):
+                            output_text = tool_output
+                        
+                        if output_text:
+                            # Indent output slightly or print as is
+                            print_formatted_text(HTML(f"<ansigray>{output_text}</ansigray>"))
+
                         print_formatted_text(HTML(f"<ansigray>{'─' * terminal_width}</ansigray>\n"))
                         self._printed_block_ids[msg_id].add(result_key)
                         # Clean up tracking for this block

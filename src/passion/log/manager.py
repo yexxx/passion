@@ -58,3 +58,9 @@ def setup_logging(console_level: str = "ERROR", log_dir: Path = None):
 
     # Log startup info to file (and console if verbose)
     logging.getLogger("passion.log").info(f"Logging initialized. Log file: {log_file}")
+
+    # Force cleanup of agentscope specific handlers to ensure it respects root configuration
+    # This prevents duplicate logs or logs bypassing our level settings
+    ag_logger = logging.getLogger("agentscope")
+    ag_logger.handlers = []
+    ag_logger.propagate = True

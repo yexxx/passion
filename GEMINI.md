@@ -58,9 +58,10 @@ passion
     *   **Code Execution:** Python (`execute_python_code`) and Shell (`execute_shell_command`).
     *   **File Operations:** Read/Write text files.
     *   **Planning:** The agent can create, track, and update step-by-step plans for complex tasks.
+        *   Real-time plan progress is displayed as tool results.
 *   **Rich Output:**
     *   Visual separators adapt to terminal width.
-    *   Tool inputs (code, commands) are displayed clearly.
+    *   Tool inputs (code, commands) and outputs (like plan updates) are displayed clearly.
     *   Colors distinguish between agent, tool usage, and results.
 *   **History:** Use Up/Down arrows to navigate command history.
 
@@ -88,7 +89,7 @@ The application looks for `config.json` in the following order:
 ```
 
 ### Logging
-*   **Console:** By default, only warnings and errors are printed to the console. Use `--log-level` to change this.
+*   **Console:** By default, only errors are printed to the console (`--log-level ERROR`). Please note that some warning messages from third-party libraries (specifically `agentscope.formatter._openai_formatter` related to "thinking" blocks) might still appear due to their internal logging configurations which override custom settings. These can often be ignored or their source module's logging behavior might need to be directly addressed in the library itself.
 *   **File:** Detailed logs (INFO level and above) are always written to `.passion/passion.log` in the project root (or home directory if project root is not writable).
 
 ## Development Conventions
