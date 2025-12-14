@@ -61,7 +61,7 @@ passion
 *   **History:** Use Up/Down arrows to navigate command history.
 
 **Options:**
-*   `--log-level`: Set the logging level for console output (default: `WARNING`).
+*   `--log-level`: Set the logging level for console output (default: `ERROR`).
     ```bash
     passion --log-level INFO
     ```
@@ -84,7 +84,7 @@ The application looks for `config.json` in the following order:
 ```
 
 ### Logging
-*   **Console:** By default, only warnings and errors are printed to the console. Use `--log-level` to change this.
+*   **Console:** By default, only errors are printed to the console (`--log-level ERROR`). Warning messages from certain third-party libraries (e.g., AgentScope's internal formatters) may still appear due to their independent logging configurations. Use `--log-level WARNING` or `INFO` to see more verbose console output.
 *   **File:** Detailed logs (INFO level and above) are always written to `.passion/passion.log` in the project root (or home directory if project root is not writable).
 
 ## Development Conventions

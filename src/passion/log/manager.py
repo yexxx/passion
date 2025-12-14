@@ -2,7 +2,7 @@ import logging
 import sys
 from pathlib import Path
 
-def setup_logging(console_level: str = "WARNING", log_dir: Path = None):
+def setup_logging(console_level: str = "ERROR", log_dir: Path = None):
     """
     Sets up logging for the application.
     
@@ -53,7 +53,6 @@ def setup_logging(console_level: str = "WARNING", log_dir: Path = None):
         numeric_level = logging.WARNING
         
     console_handler.setLevel(numeric_level)
-    # Simple format for console? Or same? User didn't specify. I'll use same for consistency.
     console_handler.setFormatter(formatter) 
     logger.addHandler(console_handler)
 
