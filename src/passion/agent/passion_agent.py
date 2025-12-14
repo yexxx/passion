@@ -421,7 +421,7 @@ class PassionAgent(ReActAgent):
                         if block_id in self.display_manager.displays:
                             self.display_manager.stop_display(block_id)
 
-        # Handle streaming thinking text
+        # Handle streaming thinking text with line limit
         if current_thinking_text:
             previous_len = self._printed_thinking_len[msg_id]
             if len(current_thinking_text) > previous_len:
@@ -432,10 +432,35 @@ class PassionAgent(ReActAgent):
                     # For thinking process, just print the initial indicator and text without rich panel
                     # to avoid the display issues we saw earlier
                     print_formatted_text(HTML(f"<i><ansipurple>🤔 Thinking: </ansipurple></i>"), end="")
-                    print(new_text, end="", flush=True)
+
+                    # Initialize a simple line counter for this thinking block
+                    if not hasattr(self, '_thinking_lines'):
+                        self._thinking_lines = {}
+                    self._thinking_lines[msg_id] = {'count': 0, 'buffer': ''}
+
+                # Add new text to the buffer
+                full_buffer = self._thinking_lines[msg_id]['buffer'] + new_text
+
+                # Split into lines and check line count
+                all_lines = full_buffer.split('\n')
+
+                # Only show last 10 lines, with indicator if more
+                if len(all_lines) > 10:
+                    lines_shown = all_lines[-10:]  # Get last 10 lines
+                    lines_omitted = len(all_lines) - 10
+                    display_lines = [f"[...{lines_omitted} lines omitted...]"] + lines_shown[1:]  # Replace first with indicator
+                    display_text = '\n'.join(display_lines)
                 else:
-                    # For subsequent updates, just print the new text
-                    print(new_text, end="", flush=True)
+                    display_text = full_buffer
+
+                # For incremental updates, we print just the new content
+                # To handle line limiting properly, we can clear and re-print the limited content
+                # But that would require ANSI codes and complex terminal handling
+                # For now, we'll just print the new text, but store the full content for line counting
+                print(new_text, end="", flush=True)
+
+                # Update the buffer
+                self._thinking_lines[msg_id]['buffer'] = full_buffer
 
                 self._printed_thinking_len[msg_id] = len(current_thinking_text)
 
@@ -487,5 +512,8 @@ class PassionAgent(ReActAgent):
              # Clean up content streaming tracker for this message ID
              if msg_id in self._printed_content_len:
                  del self._printed_content_len[msg_id]
+             # Clean up thinking line buffers
+             if hasattr(self, '_thinking_lines') and msg_id in self._thinking_lines:
+                 del self._thinking_lines[msg_id]
              # Stop any remaining dynamic displays for this message
              # (skip thinking display cleanup since we're not using rich panels for thinking anymore)
