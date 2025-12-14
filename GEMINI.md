@@ -50,6 +50,9 @@ passion
     *   `/help`: Show available commands.
     *   `/status`: Show agent status (e.g., model name, messages processed).
     *   `/quit` or `/exit`: Exit the session.
+*   **Autocomplete UX:**
+    *   Suggestions appear as you type.
+    *   **Enter** selects the highlighted suggestion without submitting. Press **Enter** again to submit.
 *   **History:** Use Up/Down arrows to navigate command history.
 
 **Options:**

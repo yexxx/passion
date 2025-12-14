@@ -5,6 +5,8 @@ from agentscope.message import Msg
 from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import WordCompleter
 from prompt_toolkit.styles import Style
+from prompt_toolkit.key_binding import KeyBindings
+from prompt_toolkit.filters import completion_is_selected
 
 def print_help():
     print("\nAvailable Commands:")
@@ -44,8 +46,22 @@ async def run_console_loop(agent):
     word_pattern = re.compile(r'^([a-zA-Z0-9_/]+)$')
     command_completer = WordCompleter(commands, ignore_case=True, pattern=word_pattern)
 
-    # Create a prompt session with history support (in-memory for now)
-    session = PromptSession(completer=command_completer)
+    # Key bindings to prevent Enter from submitting when a completion is selected
+    kb = KeyBindings()
+
+    @kb.add('enter', filter=completion_is_selected)
+    def _(event):
+        """
+        Enter selects the completion but doesn't submit.
+        """
+        event.current_buffer.complete_state = None
+
+    # Create a prompt session with history support and live autocompletion
+    session = PromptSession(
+        completer=command_completer, 
+        key_bindings=kb, 
+        complete_while_typing=True
+    )
 
     while True:
         try:
