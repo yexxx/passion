@@ -56,7 +56,7 @@ passion
     *   **Enter** selects the highlighted suggestion without submitting.
 *   **Integrated Tools:** The agent has access to various tools (e.g., code execution, file operations).
     *   Tools are registered via `Toolkit`.
-    *   Tool execution is visualized with friendly icons (e.g., 🛠️, ✅) and detailed output (showing code/commands being executed).
+    *   Tool execution is visualized with friendly icons (e.g., 🛠️, ✅) and detailed, formatted input display.
 *   **History:** Use Up/Down arrows to navigate command history.
 
 **Options:**

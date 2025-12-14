@@ -77,9 +77,10 @@ class PassionAgent(ReActAgent):
                     tool_input = block.get("input", {})
                     
                     # Print Header once
-                    if block_id not in self._printed_block_ids[msg_id]:
+                    header_key = f"{block_id}:header"
+                    if header_key not in self._printed_block_ids[msg_id]:
                         print(f"\n🛠️  Passion is using tool: {tool_name}")
-                        self._printed_block_ids[msg_id].add(block_id)
+                        self._printed_block_ids[msg_id].add(header_key)
                         # Initialize code len tracking
                         self._printed_code_len[block_id] = 0
 
@@ -102,13 +103,13 @@ class PassionAgent(ReActAgent):
                              print(command[prev_len:], end="", flush=True)
                              self._printed_code_len[block_id] = len(command)
                              
-                    elif tool_input and "input_printed" not in self._printed_code_len.get(block_id, {}):
-                        # For other tools, print input once fully? 
-                        # Or just print if we haven't.
-                        # Using _printed_code_len as a flag for simplicity (or make a new set)
-                        # Let's just print it if available and not printed
-                        # But input is dict.
-                        pass # Simplify for now, focus on code/command streaming
+                    elif tool_input:
+                        # Only print general input when message is complete to ensure it's fully populated
+                        if last:
+                            input_key = f"{block_id}:input"
+                            if input_key not in self._printed_block_ids[msg_id]:
+                                print(f"    Input: {tool_input}")
+                                self._printed_block_ids[msg_id].add(input_key)
 
             
             elif block_type == "tool_result":
@@ -121,13 +122,15 @@ class PassionAgent(ReActAgent):
                 # So we can track printed results using same ID logic but maybe distinct set?
                 # or just use _printed_block_ids[msg_id] if msg_id is different for result message.
                 
-                if block_id and block_id not in self._printed_block_ids[msg_id]:
-                    tool_name = block.get("name")
-                    print(f"\n✅ Tool {tool_name} executed successfully.\n")
-                    self._printed_block_ids[msg_id].add(block_id)
-                    # Clean up tracking for this block
-                    if block_id in self._printed_code_len:
-                        del self._printed_code_len[block_id]
+                if block_id:
+                    result_key = f"{block_id}:result"
+                    if result_key not in self._printed_block_ids[msg_id]:
+                        tool_name = block.get("name")
+                        print(f"\n✅ Tool {tool_name} executed successfully.\n")
+                        self._printed_block_ids[msg_id].add(result_key)
+                        # Clean up tracking for this block
+                        if block_id in self._printed_code_len:
+                            del self._printed_code_len[block_id]
 
         # Handle streaming text
         if current_text:
