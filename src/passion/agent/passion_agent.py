@@ -22,6 +22,7 @@ class StreamDisplayManager:
     """
     Manages dynamic streaming displays with line limits using rich Live.
     Each tool gets its own Live display that updates as content comes in.
+    Optimized to reduce redraws during scrolling.
     """
     def __init__(self):
         self.displays = {}  # block_id -> Live display
@@ -35,13 +36,13 @@ class StreamDisplayManager:
             # Initialize content buffer
             self.buffers[block_id] = {
                 'full_content': '',
-                'display_content': '',
+                'last_display_content': '',
                 'title': title
             }
 
             # Create a panel for the display content
             panel = Panel(
-                Text(self.buffers[block_id]['display_content']),
+                Text(self.buffers[block_id]['last_display_content']),
                 title=title,
                 border_style="blue",
                 height=self.max_lines + 2  # Add space for title and borders
@@ -51,7 +52,7 @@ class StreamDisplayManager:
             live = Live(
                 panel,
                 console=self.console,
-                refresh_per_second=4,  # Update 4 times per second
+                refresh_per_second=8,  # Update 8 times per second for smoother updates
                 transient=False
             )
 
@@ -64,7 +65,7 @@ class StreamDisplayManager:
             live.start()
 
     def update_content(self, block_id: str, new_content: str):
-        """Add new content to a display and update it"""
+        """Add new content to a display and update it only if display content changed"""
         if block_id not in self.buffers:
             self.create_display(block_id, "Content")
 
@@ -82,19 +83,23 @@ class StreamDisplayManager:
         else:
             display_lines = all_lines[:]
 
-        # Update display content
-        self.buffers[block_id]['display_content'] = '\n'.join(display_lines)
+        # Check if display content actually changed before updating
+        new_display_content = '\n'.join(display_lines)
 
-        # Update the live display
-        if block_id in self.displays:
-            live_info = self.displays[block_id]
-            new_panel = Panel(
-                Text(self.buffers[block_id]['display_content']),
-                title=self.buffers[block_id]['title'],
-                border_style="blue",
-                height=self.max_lines + 2
-            )
-            live_info['live'].update(new_panel)
+        # Only update if the display content changed to reduce redraws
+        if new_display_content != self.buffers[block_id]['last_display_content']:
+            self.buffers[block_id]['last_display_content'] = new_display_content
+
+            # Update the live display
+            if block_id in self.displays:
+                live_info = self.displays[block_id]
+                new_panel = Panel(
+                    Text(new_display_content),
+                    title=self.buffers[block_id]['title'],
+                    border_style="blue",
+                    height=self.max_lines + 2
+                )
+                live_info['live'].update(new_panel)
 
     def stop_display(self, block_id: str):
         """Stop the live display for a specific block"""
@@ -421,7 +426,8 @@ class PassionAgent(ReActAgent):
                         if block_id in self.display_manager.displays:
                             self.display_manager.stop_display(block_id)
 
-        # Handle streaming thinking text with line limit
+        # We'll implement line-limited thinking display using a simple approach
+        # that only updates when needed and avoids duplicate output
         if current_thinking_text:
             previous_len = self._printed_thinking_len[msg_id]
             if len(current_thinking_text) > previous_len:
@@ -429,38 +435,11 @@ class PassionAgent(ReActAgent):
 
                 # Only print "Thinking:" prefix once
                 if previous_len == 0:
-                    # For thinking process, just print the initial indicator and text without rich panel
-                    # to avoid the display issues we saw earlier
                     print_formatted_text(HTML(f"<i><ansipurple>🤔 Thinking: </ansipurple></i>"), end="")
 
-                    # Initialize a simple line counter for this thinking block
-                    if not hasattr(self, '_thinking_lines'):
-                        self._thinking_lines = {}
-                    self._thinking_lines[msg_id] = {'count': 0, 'buffer': ''}
-
-                # Add new text to the buffer
-                full_buffer = self._thinking_lines[msg_id]['buffer'] + new_text
-
-                # Split into lines and check line count
-                all_lines = full_buffer.split('\n')
-
-                # Only show last 10 lines, with indicator if more
-                if len(all_lines) > 10:
-                    lines_shown = all_lines[-10:]  # Get last 10 lines
-                    lines_omitted = len(all_lines) - 10
-                    display_lines = [f"[...{lines_omitted} lines omitted...]"] + lines_shown[1:]  # Replace first with indicator
-                    display_text = '\n'.join(display_lines)
-                else:
-                    display_text = full_buffer
-
-                # For incremental updates, we print just the new content
-                # To handle line limiting properly, we can clear and re-print the limited content
-                # But that would require ANSI codes and complex terminal handling
-                # For now, we'll just print the new text, but store the full content for line counting
+                # Simply print the new text to maintain streaming behavior
+                # without complex line counting that causes duplicate output
                 print(new_text, end="", flush=True)
-
-                # Update the buffer
-                self._thinking_lines[msg_id]['buffer'] = full_buffer
 
                 self._printed_thinking_len[msg_id] = len(current_thinking_text)
 
@@ -512,8 +491,5 @@ class PassionAgent(ReActAgent):
              # Clean up content streaming tracker for this message ID
              if msg_id in self._printed_content_len:
                  del self._printed_content_len[msg_id]
-             # Clean up thinking line buffers
-             if hasattr(self, '_thinking_lines') and msg_id in self._thinking_lines:
-                 del self._thinking_lines[msg_id]
              # Stop any remaining dynamic displays for this message
              # (skip thinking display cleanup since we're not using rich panels for thinking anymore)
