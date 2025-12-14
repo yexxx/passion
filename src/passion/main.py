@@ -5,6 +5,9 @@ import asyncio
 import agentscope
 from agentscope.message import Msg
 from agentscope.model import OpenAIChatModel
+from agentscope.formatter import OpenAIChatFormatter # New import
+from agentscope.memory import InMemoryMemory # New import
+from agentscope.agent import ReActAgent # Changed from AgentBase
 
 from passion.config.loader import load_config
 from passion.prompt.system import PASSION_AGENT_SYSTEM_PROMPT
@@ -54,8 +57,19 @@ def main():
     # Get registered tools
     registered_tools = get_registered_tools()
 
-    # Create the Passion agent
-    passion = PassionAgent(name="Passion", sys_prompt=PASSION_AGENT_SYSTEM_PROMPT, llm=llm_model, toolkit=registered_tools)
+    # Instantiate formatter and memory required by ReActAgent
+    formatter = OpenAIChatFormatter()
+    memory = InMemoryMemory()
+
+    # Create the Passion agent (now inheriting from ReActAgent)
+    passion = PassionAgent(
+        name="Passion",
+        sys_prompt=PASSION_AGENT_SYSTEM_PROMPT,
+        llm=llm_model, # Passed as model to ReActAgent
+        toolkit=registered_tools,
+        formatter=formatter,
+        memory=memory
+    )
 
     # Start the interactive console loop
     try:

@@ -7,7 +7,7 @@ This directory contains the "Passion" AI agent project, a modular Python applica
 *   **Language:** Python 3.12
 *   **Virtual Environment:** `.venv` (Standard Python `venv`)
 *   **Key Libraries:**
-    *   **AgentScope:** Multi-agent platform (with integrated tools).
+    *   **AgentScope:** Multi-agent platform (with integrated tools and ReAct capabilities).
     *   **Prompt Toolkit:** For interactive CLI features (autocompletion, history).
     *   **NumPy:** For numerical operations.
     *   **Matplotlib:** For visualizations.
@@ -22,7 +22,7 @@ This directory contains the "Passion" AI agent project, a modular Python applica
 *   `src/`: Source code directory.
     *   `passion/`: Main package.
         *   `main.py`: Application entry point.
-        *   `agent/`: Agent implementations (e.g., `passion_agent.py`).
+        *   `agent/`: Agent implementations (e.g., `passion_agent.py` inheriting from `ReActAgent`).
         *   `config/`: Configuration loading logic (`loader.py`).
         *   `log/`: Logging configuration (`manager.py`).
         *   `prompt/`: Prompt definitions (`system.py`).
@@ -54,8 +54,7 @@ passion
 *   **Autocomplete UX:**
     *   Only triggers when typing a command (starting with `/`).
     *   **Enter** selects the highlighted suggestion without submitting.
-*   **Integrated Tools:** The agent has access to various tools (e.g., code execution, file operations).
-    *   Tools are registered via `Toolkit` and schemas are passed to the LLM for function calling.
+*   **Integrated Tools:** The agent has access to various tools (e.g., code execution, file operations) which it can use to respond to queries and perform actions.
 *   **History:** Use Up/Down arrows to navigate command history.
 
 **Options:**

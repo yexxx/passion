@@ -1,52 +1,45 @@
-from agentscope.agent import AgentBase
+from agentscope.agent import ReActAgent
 from agentscope.message import Msg
 from agentscope.tool import Toolkit
+from agentscope.memory import MemoryBase
+from agentscope.formatter import FormatterBase
 
-class PassionAgent(AgentBase):
-    def __init__(self, name: str, sys_prompt: str, llm, toolkit: Toolkit = None):
-        # AgentBase.__init__ takes no arguments
-        super().__init__()
-        self.name = name
-        self.sys_prompt = sys_prompt
-        self.llm = llm # The language model instance
-        self.toolkit = toolkit # Store the toolkit instance
-        self.msg_count = 0
-
-    async def reply(self, msg: Msg) -> Msg:
-        self.msg_count += 1
-        # Prepare messages for the LLM
-        messages = [
-            Msg(name="system", role="system", content=self.sys_prompt).to_dict(),
-            msg.to_dict() # The incoming user message
-        ]
+class PassionAgent(ReActAgent):
+    def __init__(
+        self,
+        name: str,
+        sys_prompt: str,
+        llm, # Renamed from model in ReActAgent for consistency with our previous usage
+        toolkit: Toolkit = None,
+        formatter: FormatterBase = None, # ReActAgent requires a formatter
+        memory: MemoryBase = None,   # ReActAgent requires a memory
+    ):
+        # ReActAgent.__init__ expects `model` instead of `llm` for the LLM instance
+        # It also expects formatter, memory, and optionally tools (Toolkit)
+        super().__init__(
+            name=name,
+            sys_prompt=sys_prompt,
+            model=llm, # Pass llm as model to ReActAgent
+            formatter=formatter,
+            memory=memory,
+            toolkit=toolkit,
+        )
+        # ReActAgent handles msg_count and conversation flow automatically
+        # Custom reply method is not needed as ReActAgent implements the tool-use loop
+        # Store toolkit for get_status if needed
+        self.toolkit = toolkit
         
-        # Call the LLM
-        # Pass the toolkit for function calling if available
-        # AgentScope's LLMs expect tool schemas (JSON-serializable dicts), not the Toolkit object itself.
-        tool_schemas = self.toolkit.get_json_schemas() if self.toolkit else None
-        response = await self.llm(messages, tools=tool_schemas) # Pass the tool schemas to LLM
+        # Override the default prompt of ReActAgent if needed,
+        # but sys_prompt is passed directly to super.
 
-        # Extract text content (handle ToolResponse if any)
-        text_content = ""
-        if isinstance(response.content, list):
-            for block in response.content:
-                if isinstance(block, dict) and block.get("type") == "text":
-                    text_content += block.get("text", "")
-                elif isinstance(block, str):
-                    text_content += block
-        elif isinstance(response.content, str):
-            text_content = response.content
-        
-        # Return the LLM's response as a Msg object
-        return Msg(name=self.name, role="assistant", content=text_content)
+    # ReActAgent provides its own reply method, so we don't need to implement it here.
+    # We can override it if we need custom logic, but for tool usage, ReActAgent's is sufficient.
 
     def get_status(self) -> dict:
         """
         Returns the status of the agent.
         """
-        return {
-            "name": self.name,
-            "model": getattr(self.llm, "model_name", "Unknown"),
-            "messages_processed": self.msg_count,
-            "tools_registered": len(self.toolkit.get_json_schemas()) if self.toolkit else 0
-        }
+        status = super().get_status() # ReActAgent has a get_status() method
+        status["messages_processed"] = self.memory.total_len # Assuming memory tracks this
+        status["tools_registered"] = len(self.toolkit.get_json_schemas()) if self.toolkit else 0
+        return status
