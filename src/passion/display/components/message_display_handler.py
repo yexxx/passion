@@ -1,341 +1,362 @@
 """
-Message Display Handler - handles the display logic for different types of message content blocks.
-Uses Rich for all output management.
+Message Display Handler - Final Perfected Version + Real-time Thinking
+Features:
+- Real-time Thinking: Shows the specific thought process in the spinner.
+- Fixed Duplicate Logs: Ensures 'Using tool' only prints when block_id is stable.
+- Improved Indentation: Hierarchy for Plan Title vs Tasks.
+- "Tail-f" Streaming & Auto-scrolling.
+- Robust Input merging.
 """
-import shutil
-from typing import Dict, Any, Optional
+import sys
+from typing import Dict, Any, Optional, Set
 from agentscope.message import Msg
-from prompt_toolkit import print_formatted_text, HTML
-from rich.console import Console
+from rich.console import Console, Group
+from rich.live import Live
+from rich.spinner import Spinner
 from rich.text import Text
 from rich.panel import Panel
-
+from rich.syntax import Syntax
+from rich.rule import Rule
+from rich.table import Table
+from rich import box 
 
 class MessageDisplayHandler:
-    """
-    Handles the display logic for different types of message content blocks.
-    Uses Rich for all output management.
-    """
-    def __init__(self, display_manager: 'StreamDisplayManager', name: str = "Passion"):
-        self.display_manager = display_manager
+    def __init__(self, display_manager: Any = None, name: str = "Passion"):
+        self.display_manager = display_manager 
         self.name = name
-        self.terminal_width = shutil.get_terminal_size().columns
         self.console = Console()
+        
+        self.PLAN_TOOLS = ["create_plan", "mark_task_completed", "add_task", "get_plan"]
+        
+        # Live 实例池
+        self.status_live: Optional[Live] = None
+        self.active_tool_lives: Dict[str, Live] = {}
+        
+        # 状态追踪
+        self._printed_keys: Set[str] = set()
+        self._has_responded = False
+        self._finished_msg_ids: Set[str] = set()
+        self._stream_lengths: Dict[str, int] = {}
+        self._tool_inputs: Dict[str, dict] = {}
+        
+        # 记录所有已经停止/结束的 block_id，防止跨回合重复渲染
+        self._stopped_block_ids: Set[str] = set()
 
-        # State for streaming text to avoid re-printing prefixes
-        self._printed_text_len = {}
-        self._printed_block_ids = {}  # msg_id -> set(block_ids) (for headers/simple inputs)
-        self._printed_code_len = {}  # block_id -> int (for streaming code/command for execute_python_code/shell)
-        self._printed_content_len = {}  # block_id -> int (for streaming content for write_text_file)
-        self._printed_thinking_len = {}  # msg_id -> int (for streaming thinking blocks)
+    def _update_status_spinner(self, text: str):
+        """更新或启动底部的状态 Spinner"""
+        if self._has_responded: return
+        
+        # 使用 dim 样式让思考过程看起来不那么刺眼
+        spinner = Spinner("dots", text=Text(f" {text}", style="cyan"))
+        
+        if self.status_live is None:
+            self.status_live = Live(spinner, console=self.console, refresh_per_second=12, transient=True)
+            self.status_live.start()
+        else:
+            self.status_live.update(spinner)
 
-    def handle_tool_use_display(self, msg: Msg, last: bool = True) -> bool:
-        """
-        Handle the display of tool_use blocks.
-        Returns True if any tool_use blocks were processed.
-        """
-        content = msg.content
-        if not isinstance(content, list):
-            content = [{"type": "text", "text": str(content)}]
+    def _stop_status_spinner(self):
+        if self.status_live is not None:
+            try: self.status_live.stop()
+            except: pass
+            finally: self.status_live = None
 
-        msg_id = msg.id
-        if msg_id not in self._printed_text_len:
-            self._printed_text_len[msg_id] = 0
-            self._printed_block_ids[msg_id] = set()
-            self._printed_thinking_len[msg_id] = 0  # Initialize for thinking blocks
-            self._printed_content_len[msg_id] = {}  # Initialize for content streaming
-
-        processed_any = False
-        for block in content:
-            block_type = block.get("type")
-            block_id = block.get("id")
-
-            if block_type == "tool_use" and block_id:
-                tool_name = block.get("name")
-                tool_input = block.get("input", {})
-
-                # Print Header once
-                header_key = f"{block_id}:header"
-                if header_key not in self._printed_block_ids[msg_id]:
-                    # Separator before tool usage
-                    print_formatted_text(HTML(f"\n{self._get_separator_line(self.terminal_width)}"))
-                    print_formatted_text(HTML(self._get_tool_use_style(tool_name)))
-                    self._printed_block_ids[msg_id].add(header_key)
-                    # Initialize tracking for specific content types
-                    self._printed_code_len[block_id] = 0
-                    if block_id not in self._printed_content_len:
-                        self._printed_content_len[block_id] = 0  # Initialize for write_text_file content
-
-                # Stream Code for execute_python_code
-                if tool_name == "execute_python_code" and "code" in tool_input:
-                    code = tool_input["code"]
-                    prev_len = self._printed_code_len.get(block_id, 0)
-                    if len(code) > prev_len:
-                        if prev_len == 0:
-                            print_formatted_text(HTML("    <ansigray>Code:</ansigray>\n"), end="")
-                            # Use the display manager for dynamic updates of python code
-                            self.display_manager.create_display(
-                                block_id,
-                                title="Python Code Execution"
-                            )
-                        new_chunk = code[prev_len:]
-                        # Update the dynamic display with new content
-                        self.display_manager.update_content(block_id, new_chunk)
-                        self._printed_code_len[block_id] = len(code)
-
-                elif tool_name == "execute_shell_command" and "command" in tool_input:
-                    command = tool_input["command"]
-                    prev_len = self._printed_code_len.get(block_id, 0)
-                    if len(command) > prev_len:
-                         if prev_len == 0:
-                            print_formatted_text(HTML("    <ansigray>Command: </ansigray>"), end="")
-                            # Use the display manager for dynamic updates of shell commands
-                            self.display_manager.create_display(
-                                block_id,
-                                title="Shell Command Execution"
-                            )
-                         new_chunk = command[prev_len:]
-                         # Update the dynamic display with new content
-                         self.display_manager.update_content(block_id, new_chunk)
-                         self._printed_code_len[block_id] = len(command)
-
-                # Stream Content for write_text_file with dynamic display
-                elif tool_name == "write_text_file" and "content" in tool_input:
-                    file_content = tool_input["content"]
-                    prev_len = self._printed_content_len.get(block_id, 0)
-                    if len(file_content) > prev_len:
-                        if prev_len == 0:
-                            print_formatted_text(HTML(f"    <ansigray>File Path: {tool_input.get('file_path', 'N/A')}</ansigray>\n"), end="")
-                            print_formatted_text(HTML("    <ansigray>Content:</ansigray>\n"), end="")
-                            # Use the display manager for dynamic updates
-                            self.display_manager.create_display(
-                                block_id,
-                                title=f"Writing to: {tool_input.get('file_path', 'unknown')}"
-                            )
-
-                        new_chunk = file_content[prev_len:]
-
-                        # Update the dynamic display with new content
-                        self.display_manager.update_content(block_id, new_chunk)
-
-                        self._printed_content_len[block_id] = len(file_content)
-
-                elif tool_input:
-                    # Only print general input when message is complete to ensure it's fully populated
-                    if last:
-                        input_key = f"{block_id}:input"
-                        if input_key not in self._printed_block_ids[msg_id]:
-                            print_formatted_text(HTML(f"    <ansigray>Input: {tool_input}</ansigray>"))
-                            self._printed_block_ids[msg_id].add(input_key)
-
-                processed_any = True
-
-        return processed_any
-
-    def handle_tool_result_display(self, msg: Msg) -> bool:
-        """
-        Handle the display of tool_result blocks.
-        Returns True if any tool_result blocks were processed.
-        """
-        content = msg.content
-        if not isinstance(content, list):
-            content = [{"type": "text", "text": str(content)}]
-
-        msg_id = msg.id
-        if msg_id not in self._printed_text_len:
-            self._printed_text_len[msg_id] = 0
-            self._printed_block_ids[msg_id] = set()
-            self._printed_thinking_len[msg_id] = 0  # Initialize for thinking blocks
-            self._printed_content_len[msg_id] = {}  # Initialize for content streaming
-
-        processed_any = False
-        for block in content:
-            block_type = block.get("type")
-            block_id = block.get("id")
-
-            if block_type == "tool_result" and block_id:
-                result_key = f"{block_id}:result"
-                if result_key not in self._printed_block_ids[msg_id]:
-                    tool_name = block.get("name")
-                    print_formatted_text(HTML(f"\n{self._get_tool_result_style(tool_name)}"))
-
-                    # Print Tool Output (e.g. Plan content)
-                    tool_output = block.get("output")
-                    output_text = ""
-                    if isinstance(tool_output, list):
-                        for out_block in tool_output:
-                            if isinstance(out_block, dict) and out_block.get("type") == "text":
-                                output_text += out_block.get("text", "")
-                            elif isinstance(out_block, str):
-                                output_text += out_block
-                    elif isinstance(tool_output, str):
-                        output_text = tool_output
-
-                    if output_text:
-                        # Indent output slightly or print as is
-                        print_formatted_text(HTML(f"<ansigray>{output_text}</ansigray>"))
-
-                    print_formatted_text(HTML(f"{self._get_separator_line(self.terminal_width)}\n"))
-                    self._printed_block_ids[msg_id].add(result_key)
-                    # Clean up tracking for this block
-                    if block_id in self._printed_code_len:
-                        del self._printed_code_len[block_id]
-                    if block_id in self._printed_content_len:
-                        del self._printed_content_len[block_id]
-                    # Stop the dynamic display if it was running
-                    if block_id in self.display_manager.displays:
-                        self.display_manager.stop_display(block_id)
-
-                processed_any = True
-
-        return processed_any
+    def _get_tracker_key(self, msg_id: str, block_id: Optional[str], suffix: str = "") -> str:
+        if block_id:
+            return f"tool:{block_id}:{suffix}"
+        else:
+            return f"msg:{msg_id}:{suffix}"
 
     def handle_thinking_display(self, msg: Msg) -> bool:
         """
-        Handle the display of thinking blocks.
-        Returns True if any thinking blocks were processed.
-        Uses Rich for all output management.
+        处理思考过程显示。
+        [新增功能] 实时提取思考内容的最后一行显示在 Spinner 上。
         """
-        content = msg.content
-        if not isinstance(content, list):
-            content = [{"type": "text", "text": str(content)}]
+        if msg.id in self._finished_msg_ids: return False
+        content = msg.content if isinstance(msg.content, list) else [{"type": "text", "text": str(msg.content)}]
+        
+        for block in content:
+            if block.get("type") == "thinking":
+                if not self._has_responded:
+                    # 获取思考的完整文本
+                    thought_content = block.get("thinking", "")
+                    
+                    display_text = "Passion is thinking..."
+                    
+                    # 提取最后一行非空文本，让用户看到它正在想什么
+                    if thought_content:
+                        # 按行分割，过滤空行
+                        lines = [line.strip() for line in thought_content.split('\n') if line.strip()]
+                        if lines:
+                            last_line = lines[-1]
+                            # 如果太长，截取后60个字符，保留句尾信息
+                            if len(last_line) > 60:
+                                last_line = "..." + last_line[-57:]
+                            
+                            # 移除 markdown 标记防止格式混乱
+                            last_line = last_line.replace("```", "").replace("#", "")
+                            display_text = f"Thinking: {last_line}"
 
+                    self._update_status_spinner(display_text)
+                return True
+        return False
+
+    def handle_tool_use_display(self, msg: Msg, last: bool = True) -> bool:
+        if msg.id in self._finished_msg_ids: return False
+
+        content = msg.content if isinstance(msg.content, list) else [{"type": "text", "text": str(msg.content)}]
         msg_id = msg.id
-        if msg_id not in self._printed_text_len:
-            self._printed_text_len[msg_id] = 0
-            self._printed_block_ids[msg_id] = set()
-            self._printed_thinking_len[msg_id] = 0  # Initialize for thinking blocks
-            self._printed_content_len[msg_id] = {}  # Initialize for content streaming
+        processed_any = False
 
-        # Accumulate thinking text for streaming
-        current_thinking_text = ""
         for block in content:
             block_type = block.get("type")
-            if block_type == "thinking":
-                current_thinking_text += block.get("thinking", "")
+            block_id = block.get("id")
+            
+            if block_type == "tool_use":
+                if not block_id: continue
+                
+                tool_name = block.get("name")
+                tool_input = block.get("input", {})
+                
+                # 1. 参数持久化
+                if block_id not in self._tool_inputs:
+                    self._tool_inputs[block_id] = {}
+                if isinstance(tool_input, dict) and tool_input:
+                    self._tool_inputs[block_id].update(tool_input)
+                
+                start_key = self._get_tracker_key(msg_id, block_id, "tool_start")
+                
+                # 2. 显示“工具开始”
+                if start_key not in self._printed_keys:
+                    self.console.print(f"[dim]🛠️  Using tool: {tool_name}...[/dim]")
+                    self._printed_keys.add(start_key)
 
-        if current_thinking_text:
-            previous_len = self._printed_thinking_len.get(msg_id, 0)
-            if len(current_thinking_text) > previous_len:
-                new_text = current_thinking_text[previous_len:]
+                is_streaming_tool = tool_name in ["execute_python_code", "execute_shell_command", "write_text_file"]
+                
+                if is_streaming_tool:
+                    self._stop_status_spinner()
+                    full_input = self._tool_inputs[block_id]
+                    self._handle_streaming_panel(block_id, tool_name, full_input)
+                else:
+                    action_text = f"Updating plan..." if tool_name in self.PLAN_TOOLS else f"Running {tool_name}..."
+                    self._update_status_spinner(action_text)
 
-                # Only print "Thinking:" prefix once
-                if previous_len == 0:
-                    print_formatted_text(HTML(self._get_thinking_style()), end="")
+                processed_any = True
+        return processed_any
 
-                # Use Rich for consistent output instead of raw print
-                self.console.print(new_text, end="", markup=False)
-                self.console.file.flush()  # Ensure immediate output
+    def _handle_streaming_panel(self, block_id, tool_name, tool_input):
+        if block_id in self._stopped_block_ids:
+            return
 
-                self._printed_thinking_len[msg_id] = len(current_thinking_text)
-            return True
+        tool_config = {
+            "execute_python_code": ("code", "Python Code", "python", "code"),
+            "execute_shell_command": ("command", "Shell Command", "bash", "command"),
+            "write_text_file": ("content", "Writing File", "markdown", "file_path")
+        }
+        
+        if tool_name not in tool_config: return
+        key, title_prefix, lexer, meta_key = tool_config[tool_name]
+        
+        if meta_key not in tool_input and key not in tool_input: return
+        content_str = tool_input.get(key, "")
+        if not content_str and block_id not in self.active_tool_lives: return
 
-        return False
+        if tool_name == "write_text_file":
+            file_path = tool_input.get("file_path", "Unknown File")
+            title = f"{title_prefix}: {file_path}"
+        else:
+            title = title_prefix
+
+        if block_id not in self.active_tool_lives:
+            if self._has_responded: self.console.print()
+            
+            renderable = self._create_panel_renderable(content_str, title, lexer)
+            live = Live(renderable, console=self.console, refresh_per_second=10)
+            live.start()
+            self.active_tool_lives[block_id] = live
+        else:
+            live = self.active_tool_lives[block_id]
+            renderable = self._create_panel_renderable(content_str, title, lexer)
+            live.update(renderable)
+
+    def _create_panel_renderable(self, content: str, title: str, lexer: str):
+        if not content: content = " "
+        
+        if lexer in ["python", "bash"]:
+            MAX_LINES = 8
+        else:
+            MAX_LINES = 3 
+
+        lines = content.splitlines()
+        total_lines = len(lines)
+        
+        render_objects = []
+        
+        if total_lines > MAX_LINES:
+            hidden_count = total_lines - MAX_LINES
+            visible_lines = lines[-MAX_LINES:]
+            
+            info_text = Text(f"... ({hidden_count} lines hidden)", style="dim italic")
+            render_objects.append(info_text)
+            
+            display_content = "\n".join(visible_lines)
+            start_line_number = hidden_count + 1 
+        else:
+            display_content = content
+            start_line_number = 1
+            
+        if lexer == "python" or lexer == "bash":
+            code_block = Syntax(
+                display_content, 
+                lexer, 
+                theme="monokai", 
+                line_numbers=True, 
+                start_line=start_line_number, 
+                word_wrap=True
+            )
+            render_objects.append(code_block)
+        else:
+            render_objects.append(Text(display_content))
+
+        return Panel(
+            Group(*render_objects), 
+            title=f"[bold]{title}[/]", 
+            border_style="blue", 
+            padding=(0, 1)
+        )
+
+    def handle_tool_result_display(self, msg: Msg) -> bool:
+        if msg.id in self._finished_msg_ids: return False
+        
+        content = msg.content if isinstance(msg.content, list) else [{"type": "text", "text": str(msg.content)}]
+        msg_id = msg.id
+        processed_any = False
+
+        for block in content:
+            if block.get("type") == "tool_result":
+                block_id = block.get("id")
+                end_key = self._get_tracker_key(msg_id, block_id, "tool_end")
+
+                if end_key not in self._printed_keys:
+                    if block_id in self.active_tool_lives:
+                        self.active_tool_lives[block_id].stop()
+                        del self.active_tool_lives[block_id]
+                    self._stopped_block_ids.add(block_id)
+                    
+                    self._stop_status_spinner()
+
+                    tool_name = block.get("name", "Tool")
+                    raw_output = block.get("output")
+
+                    if raw_output is None or str(raw_output).strip() == "" or str(raw_output) == "None":
+                        self._printed_keys.add(end_key)
+                        continue 
+
+                    # Plan 清单
+                    if tool_name in self.PLAN_TOOLS:
+                        lines = str(raw_output).strip().split('\n')
+                        self.console.print() 
+                        self.console.print("  [bold]📋 Current Plan[/]") 
+                        
+                        for line in lines:
+                            line = line.strip()
+                            if not line or "Current Plan:" in line or "marked as completed" in line or line.startswith("Result:"): 
+                                continue
+                            if line[0].isdigit() and ". " in line:
+                                try:
+                                    parts = line.split(". ", 1)
+                                    rest = parts[1]
+                                    if " " in rest:
+                                        icon, desc = rest.split(" ", 1)
+                                    else:
+                                        icon, desc = rest, ""
+                                    
+                                    if "✅" in icon:
+                                        self.console.print(f"    [green]{icon}[/] {desc}")
+                                    else:
+                                        self.console.print(f"    [dim]{icon} {desc}[/dim]")
+                                except:
+                                    self.console.print(f"    {line}")
+                        self.console.print() 
+                    
+                    else:
+                        tool_input = self._tool_inputs.get(block_id, {})
+                        
+                        file_path = tool_input.get("file_path") or tool_input.get("filename") or tool_input.get("path") or "unknown file"
+                        
+                        summary = ""
+                        if tool_name == "view_text_file":
+                            summary = f"read: {file_path}"
+                        elif tool_name == "write_text_file":
+                            summary = f"wrote to: {file_path}"
+                        else:
+                            output_str = str(raw_output).strip()
+                            output_single_line = output_str.replace("\n", " ").replace("\r", "")
+                            if len(output_single_line) > 50:
+                                summary = output_single_line[:50] + "..."
+                            else:
+                                summary = output_single_line
+
+                        self.console.print(f"[bold green]✓[/] {tool_name} executed. [dim]({summary})[/]")
+                    
+                    self._printed_keys.add(end_key)
+                    
+                    if not self._has_responded:
+                        self._update_status_spinner("Passion is analyzing results...")
+                
+                processed_any = True
+        return processed_any
 
     def handle_text_display(self, msg: Msg) -> bool:
-        """
-        Handle the display of text blocks (agent's final response).
-        Uses Rich for all output management.
-        Returns True if any text blocks were processed.
-        """
-        content = msg.content
-        if not isinstance(content, list):
-            content = [{"type": "text", "text": str(content)}]
+        if msg.id in self._finished_msg_ids: return False
 
+        content = msg.content if isinstance(msg.content, list) else [{"type": "text", "text": str(msg.content)}]
         msg_id = msg.id
-        if msg_id not in self._printed_text_len:
-            self._printed_text_len[msg_id] = 0
-            self._printed_block_ids[msg_id] = set()
-            self._printed_thinking_len[msg_id] = 0  # Initialize for thinking blocks
-            self._printed_content_len[msg_id] = {}  # Initialize for content streaming
+        processed_any = False
 
-        # Accumulate text for streaming
-        current_text = ""
         for block in content:
-            block_type = block.get("type")
-            if block_type == "text":
-                current_text += block.get("text", "")
+            if block.get("type") == "text":
+                text = block.get("text", "")
+                
+                stream_key = self._get_tracker_key(msg_id, None, "text_len")
+                prev_len = self._stream_lengths.get(stream_key, 0)
 
-        if current_text:
-            previous_len = self._printed_text_len.get(msg_id, 0)
-            if len(current_text) > previous_len:
-                new_text = current_text[previous_len:]
+                if len(text) > prev_len:
+                    self._stop_status_spinner()
+                    self._has_responded = True
 
-                # If this is the first text chunk, print the agent name
-                if previous_len == 0:
-                    print_formatted_text(HTML(self._get_agent_name_style(self.name)), end="")
-
-                # Use Rich for consistent output instead of raw print
-                self.console.print(new_text, end="", markup=False)
-                self.console.file.flush()  # Ensure immediate output
-                self._printed_text_len[msg_id] = len(current_text)
-            return True
-
-        return False
+                    if prev_len == 0:
+                        self.console.print(f"\n[bold blue]{self.name}:[/] ", end="")
+                    
+                    new_chunk = text[prev_len:]
+                    self.console.print(new_chunk, end="", highlight=False)
+                    
+                    self._stream_lengths[stream_key] = len(text)
+                
+                processed_any = True
+        return processed_any
 
     def handle_final_cleanup(self, msg: Msg, last: bool = True) -> None:
-        """
-        Perform final cleanup when a message is completely processed.
-        Uses Rich for all output management.
-        """
-        if not last:
-            return
+        if not last: return
+        if msg.id in self._finished_msg_ids: return
 
-        content = msg.content
-        if not isinstance(content, list):
-            content = [{"type": "text", "text": str(content)}]
-
-        msg_id = msg.id
-        if msg_id not in self._printed_text_len:
-            return
-
-        # Clean up state
-        if msg_id in self._printed_text_len:
-            del self._printed_text_len[msg_id]
-        if msg_id in self._printed_block_ids:
-            del self._printed_block_ids[msg_id]
-        if msg_id in self._printed_thinking_len:
-            del self._printed_thinking_len[msg_id]
-        # Clean up content streaming tracker for this message ID
-        if msg_id in self._printed_content_len:
-            del self._printed_content_len[msg_id]
-        # (skip thinking display cleanup since we're not using rich panels for thinking anymore)
-
-        # End of message - use Rich for newline
-        self.console.print()  # Newline using Rich
-
-        # Check if this message was an intermediate step (Tool Use/Result)
-        has_tool = False
-        if isinstance(content, list):
-            for block in content:
-                if block.get("type") in ["tool_use", "tool_result", "thinking"]:
-                    has_tool = True
-                    break
-
-        # Only print the heavy separator if it's likely a final response (no tool blocks)
-        if not has_tool:
-            print_formatted_text(HTML(f"<ansigray>{'═' * self.terminal_width}</ansigray>"))
-
-    def _get_thinking_style(self) -> str:
-        """Get the thinking display style"""
-        return "<i><ansipurple>🤔 Thinking: </ansipurple></i>"
-
-    def _get_tool_use_style(self, tool_name: str) -> str:
-        """Get the tool use display style"""
-        return f"<b><ansiyellow>🛠️  Passion is using tool: {tool_name}</ansiyellow></b>"
-
-    def _get_tool_result_style(self, tool_name: str) -> str:
-        """Get the tool result display style"""
-        return f"<b><ansigreen>✅ Tool {tool_name} executed successfully.</ansigreen></b>"
-
-    def _get_agent_name_style(self, agent_name: str) -> str:
-        """Get the agent name display style"""
-        return f"<b><ansicyan>{agent_name}: </ansicyan></b>"
-
-    def _get_separator_line(self, width: int = 80, char: str = '─') -> str:
-        """Get a separator line"""
-        return f"<ansigray>{char * width}</ansigray>"
-
-    def reset_terminal_width(self) -> None:
-        """Update the cached terminal width."""
-        self.terminal_width = shutil.get_terminal_size().columns
+        self._stop_status_spinner()
+        
+        # 清理时，将所有活跃的 block_id 加入黑名单
+        for block_id, live in self.active_tool_lives.items():
+            try: live.stop()
+            except: pass
+            self._stopped_block_ids.add(block_id)
+            
+        self.active_tool_lives.clear()
+        
+        self._finished_msg_ids.add(msg.id)
+        
+        stream_key = self._get_tracker_key(msg.id, None, "text_len")
+        has_text = stream_key in self._stream_lengths
+        
+        if has_text:
+            self.console.print() 
+        
+        self.console.print(Rule(style="dim"))
+        self._has_responded = False
