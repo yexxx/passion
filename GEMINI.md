@@ -63,7 +63,9 @@ passion
     *   Visual separators adapt to terminal width.
     *   Tool inputs (code, commands) and outputs (like plan updates) are displayed clearly.
     *   Colors distinguish between agent, tool usage, and results.
+    *   Agent's "thinking" process is streamed with a distinct style.
 *   **History:** Use Up/Down arrows to navigate command history.
+*   **Iteration Limit:** The agent's reasoning-acting loop now has a higher iteration limit (defaulting to 50 steps) to allow for more complex task completion without premature summarization.
 
 **Options:**
 *   `--log-level`: Set the logging level for console output (default: `ERROR`).

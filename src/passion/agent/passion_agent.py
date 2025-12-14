@@ -16,6 +16,7 @@ class PassionAgent(ReActAgent):
         toolkit: Toolkit = None,
         formatter: FormatterBase = None,
         memory: MemoryBase = None,
+        max_iters: int = 50, # Expose and default to a higher limit
     ):
         super().__init__(
             name=name,
@@ -24,6 +25,7 @@ class PassionAgent(ReActAgent):
             formatter=formatter,
             memory=memory,
             toolkit=toolkit,
+            max_iters=max_iters, # Pass to ReActAgent
         )
         self.toolkit = toolkit
         
@@ -31,6 +33,7 @@ class PassionAgent(ReActAgent):
         self._printed_text_len = {}
         self._printed_block_ids = {} # msg_id -> set(block_ids) (for headers/simple inputs)
         self._printed_code_len = {} # block_id -> int (for streaming code/command)
+        self._printed_thinking_len = {} # msg_id -> int (for streaming thinking blocks)
 
     def get_status(self) -> dict:
         """
@@ -58,6 +61,7 @@ class PassionAgent(ReActAgent):
         if msg_id not in self._printed_text_len:
             self._printed_text_len[msg_id] = 0
             self._printed_block_ids[msg_id] = set()
+            self._printed_thinking_len[msg_id] = 0 # Initialize for thinking blocks
 
         content = msg.content
         if not isinstance(content, list):
@@ -65,6 +69,8 @@ class PassionAgent(ReActAgent):
             
         terminal_width = shutil.get_terminal_size().columns
 
+        # Accumulate thinking text for streaming
+        current_thinking_text = ""
         # Process blocks
         current_text = ""
         for block in content:
@@ -75,8 +81,8 @@ class PassionAgent(ReActAgent):
                 current_text += block.get("text", "")
             
             elif block_type == "thinking":
-                pass
-
+                current_thinking_text += block.get("thinking", "")
+                
             elif block_type == "tool_use":
                 if block_id:
                     tool_name = block.get("name")
@@ -155,7 +161,20 @@ class PassionAgent(ReActAgent):
                         if block_id in self._printed_code_len:
                             del self._printed_code_len[block_id]
 
-        # Handle streaming text
+        # Handle streaming thinking text
+        if current_thinking_text:
+            previous_len = self._printed_thinking_len[msg_id]
+            if len(current_thinking_text) > previous_len:
+                new_text = current_thinking_text[previous_len:]
+                
+                # Only print "Thinking:" prefix once
+                if previous_len == 0:
+                    print_formatted_text(HTML(f"<i><ansipurple>🤔 Thinking: </ansipurple></i>"), end="")
+                
+                print(new_text, end="", flush=True)
+                self._printed_thinking_len[msg_id] = len(current_thinking_text)
+
+        # Handle streaming text (agent's final response)
         if current_text:
             previous_len = self._printed_text_len[msg_id]
             if len(current_text) > previous_len:
@@ -180,7 +199,7 @@ class PassionAgent(ReActAgent):
              has_tool = False
              if isinstance(content, list):
                  for block in content:
-                     if block.get("type") in ["tool_use", "tool_result"]:
+                     if block.get("type") in ["tool_use", "tool_result", "thinking"]:
                          has_tool = True
                          break
              
@@ -193,3 +212,5 @@ class PassionAgent(ReActAgent):
                  del self._printed_text_len[msg_id]
              if msg_id in self._printed_block_ids:
                  del self._printed_block_ids[msg_id]
+             if msg_id in self._printed_thinking_len:
+                 del self._printed_thinking_len[msg_id]

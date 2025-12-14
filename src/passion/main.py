@@ -94,7 +94,8 @@ def main():
         llm=llm_model, # Passed as model to ReActAgent
         toolkit=registered_tools,
         formatter=formatter,
-        memory=memory
+        memory=memory,
+        max_iters=50 # Set a higher iteration limit
     )
 
     # Start the interactive console loop
