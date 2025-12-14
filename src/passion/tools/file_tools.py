@@ -24,7 +24,7 @@ def write_text_file(file_path: str, content: str, mode: str = 'w', encoding: str
             f.write(content)
         return ToolResponse(content=f"Successfully wrote content to {file_path}")
     except Exception as e:
-        return ToolResponse(content=f"Error writing to {file_path}: {e}", is_error=True)
+        return ToolResponse(content=f"Error writing to {file_path}: {e}")
 
 def view_text_file(file_path: str, line_start: int = 1, line_end: int = -1) -> ToolResponse:
     """
@@ -49,9 +49,9 @@ def view_text_file(file_path: str, line_start: int = 1, line_end: int = -1) -> T
         end_idx = total_lines if line_end == -1 else min(total_lines, line_end)
         
         if start_idx >= total_lines:
-            return ToolResponse(content=f"Error: Line start {line_start} is beyond file end (total {total_lines} lines).", is_error=True)
+            return ToolResponse(content=f"Error: Line start {line_start} is beyond file end (total {total_lines} lines).")
         if start_idx >= end_idx and line_end != -1: # if line_end is 1 for line_start 1, still valid.
-            return ToolResponse(content=f"Error: Line start {line_start} is after line end {line_end}.", is_error=True)
+            return ToolResponse(content=f"Error: Line start {line_start} is after line end {line_end}.")
             
         selected_lines = lines[start_idx:end_idx]
         
@@ -62,6 +62,6 @@ def view_text_file(file_path: str, line_start: int = 1, line_end: int = -1) -> T
             
         return ToolResponse(content=f"The content of {file_path}:\n```\n" + "\n".join(formatted_content) + "\n```")
     except FileNotFoundError:
-        return ToolResponse(content=f"Error: The file {file_path} does not exist.", is_error=True)
+        return ToolResponse(content=f"Error: The file {file_path} does not exist.")
     except Exception as e:
-        return ToolResponse(content=f"Error reading {file_path}: {e}", is_error=True)
+        return ToolResponse(content=f"Error reading {file_path}: {e}")
