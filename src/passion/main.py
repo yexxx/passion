@@ -11,6 +11,7 @@ from passion.prompt.system import PASSION_AGENT_SYSTEM_PROMPT
 from passion.agent.passion_agent import PassionAgent
 from passion.log.manager import setup_logging
 from passion.utils.common import get_passion_dir
+from passion.interface.cli import run_console_loop
 
 logger = logging.getLogger(__name__)
 
@@ -52,14 +53,11 @@ def main():
     # Create the Passion agent
     passion = PassionAgent(name="Passion", sys_prompt=PASSION_AGENT_SYSTEM_PROMPT, llm=llm_model)
 
-    # Create a user message
-    msg = Msg(name="User", role="user", content="Hello, Passion! I'm running you from the CLI now!")
-
-    # Send the message to Passion and get the response
-    response = asyncio.run(passion.reply(msg))
-
-    # Print the response (Primary Output)
-    print(f"\nPassion: {response.content}")
+    # Start the interactive console loop
+    try:
+        asyncio.run(run_console_loop(passion))
+    except KeyboardInterrupt:
+        print("\nGoodbye!")
 
 if __name__ == "__main__":
     main()

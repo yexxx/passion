@@ -1,7 +1,7 @@
 # Project Context: Passion AI Agent
 
 ## Project Overview
-This directory contains the "Passion" AI agent project, a modular Python application built on top of **AgentScope**. It is designed to be an enthusiastic and energetic AI assistant that runs from the command line.
+This directory contains the "Passion" AI agent project, a modular Python application built on top of **AgentScope**. It is designed to be an enthusiastic and energetic AI assistant that runs from the command line, offering an interactive chat experience.
 
 ## Key Technologies
 *   **Language:** Python 3.12
@@ -25,6 +25,7 @@ This directory contains the "Passion" AI agent project, a modular Python applica
         *   `config/`: Configuration loading logic (`loader.py`).
         *   `log/`: Logging configuration (`manager.py`).
         *   `prompt/`: Prompt definitions (`system.py`).
+        *   `interface/`: User interface components (`cli.py` for console interaction).
         *   `utils/`: Utility functions (`common.py`).
 
 ## Building and Running
@@ -36,12 +37,13 @@ To install the project in editable mode:
 pip install -e .
 ```
 
-### Running the Agent
-Once installed, you can run the agent directly from the command line:
+### Running the Agent (Interactive CLI)
+Once installed, you can run the agent directly from the command line, which will start an interactive chat session:
 
 ```bash
 passion
 ```
+Type your messages at the `User:` prompt. To exit the session, type `exit` or `quit`.
 
 **Options:**
 *   `--log-level`: Set the logging level for console output (default: `WARNING`).
@@ -74,4 +76,4 @@ The application looks for `config.json` in the following order:
 
 *   **Code Style:** Adhere to [PEP 8](https://peps.python.org/pep-0008/) guidelines.
 *   **Type Hinting:** Utilize Python's type hinting system.
-*   **Modularity:** Keep components (agents, config, prompts) in their respective modules under `src/passion`.
+*   **Modularity:** Keep components (agents, config, prompts, interface) in their respective modules under `src/passion`.
