@@ -1,20 +1,26 @@
 """
 Message Display Handler - handles the display logic for different types of message content blocks.
+Uses Rich for all output management.
 """
 import shutil
 from typing import Dict, Any, Optional
 from agentscope.message import Msg
 from prompt_toolkit import print_formatted_text, HTML
+from rich.console import Console
+from rich.text import Text
+from rich.panel import Panel
 
 
 class MessageDisplayHandler:
     """
     Handles the display logic for different types of message content blocks.
+    Uses Rich for all output management.
     """
     def __init__(self, display_manager: 'StreamDisplayManager', name: str = "Passion"):
         self.display_manager = display_manager
         self.name = name
         self.terminal_width = shutil.get_terminal_size().columns
+        self.console = Console()
 
         # State for streaming text to avoid re-printing prefixes
         self._printed_text_len = {}
@@ -179,7 +185,7 @@ class MessageDisplayHandler:
                     # Stop the dynamic display if it was running
                     if block_id in self.display_manager.displays:
                         self.display_manager.stop_display(block_id)
-                
+
                 processed_any = True
 
         return processed_any
@@ -188,6 +194,7 @@ class MessageDisplayHandler:
         """
         Handle the display of thinking blocks.
         Returns True if any thinking blocks were processed.
+        Uses Rich for all output management.
         """
         content = msg.content
         if not isinstance(content, list):
@@ -216,9 +223,9 @@ class MessageDisplayHandler:
                 if previous_len == 0:
                     print_formatted_text(HTML(self._get_thinking_style()), end="")
 
-                # Simply print the new text to maintain streaming behavior
-                # without complex line counting that causes duplicate output
-                print(new_text, end="", flush=True)
+                # Use Rich for consistent output instead of raw print
+                self.console.print(new_text, end="", markup=False)
+                self.console.file.flush()  # Ensure immediate output
 
                 self._printed_thinking_len[msg_id] = len(current_thinking_text)
             return True
@@ -228,6 +235,7 @@ class MessageDisplayHandler:
     def handle_text_display(self, msg: Msg) -> bool:
         """
         Handle the display of text blocks (agent's final response).
+        Uses Rich for all output management.
         Returns True if any text blocks were processed.
         """
         content = msg.content
@@ -257,8 +265,9 @@ class MessageDisplayHandler:
                 if previous_len == 0:
                     print_formatted_text(HTML(self._get_agent_name_style(self.name)), end="")
 
-                # Print text (streaming).
-                print(new_text, end="", flush=True)
+                # Use Rich for consistent output instead of raw print
+                self.console.print(new_text, end="", markup=False)
+                self.console.file.flush()  # Ensure immediate output
                 self._printed_text_len[msg_id] = len(current_text)
             return True
 
@@ -267,6 +276,7 @@ class MessageDisplayHandler:
     def handle_final_cleanup(self, msg: Msg, last: bool = True) -> None:
         """
         Perform final cleanup when a message is completely processed.
+        Uses Rich for all output management.
         """
         if not last:
             return
@@ -290,9 +300,9 @@ class MessageDisplayHandler:
         if msg_id in self._printed_content_len:
             del self._printed_content_len[msg_id]
         # (skip thinking display cleanup since we're not using rich panels for thinking anymore)
-        
-        # End of message
-        print("")  # Newline
+
+        # End of message - use Rich for newline
+        self.console.print()  # Newline using Rich
 
         # Check if this message was an intermediate step (Tool Use/Result)
         has_tool = False
