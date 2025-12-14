@@ -1,7 +1,7 @@
 # Project Context: Passion AI Agent
 
 ## Project Overview
-This directory contains the "Passion" AI agent project, a modular Python application built on top of **AgentScope**. It is designed to be an enthusiastic and energetic AI assistant that runs from the command line, offering an interactive chat experience.
+This directory contains the "Passion" AI agent project, a modular Python application built on top of **AgentScope**. It is designed to be an enthusiastic and energetic AI assistant that runs from the command line, offering an interactive chat experience with command support.
 
 ## Key Technologies
 *   **Language:** Python 3.12
@@ -38,12 +38,16 @@ pip install -e .
 ```
 
 ### Running the Agent (Interactive CLI)
-Once installed, you can run the agent directly from the command line, which will start an interactive chat session:
+Once installed, you can run the agent directly from the command line:
 
 ```bash
 passion
 ```
-Type your messages at the `User:` prompt. To exit the session, type `exit` or `quit`.
+
+**Commands:**
+*   `/help`: Show available commands.
+*   `/status`: Show agent status (e.g., model name, messages processed).
+*   `/quit` or `/exit`: Exit the session.
 
 **Options:**
 *   `--log-level`: Set the logging level for console output (default: `WARNING`).
