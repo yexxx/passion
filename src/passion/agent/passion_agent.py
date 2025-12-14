@@ -1,3 +1,4 @@
+import shutil
 from typing import Any, Optional, Union, List
 from agentscope.agent import ReActAgent
 from agentscope.message import Msg, AudioBlock
@@ -27,11 +28,11 @@ class PassionAgent(ReActAgent):
         self.toolkit = toolkit
         
         # State for streaming text to avoid re-printing prefixes
-        self._printed_text_len = {} 
+        self._printed_text_len = {}
         self._printed_block_ids = {} # msg_id -> set(block_ids) (for headers/simple inputs)
         self._printed_code_len = {} # block_id -> int (for streaming code/command)
 
-    def get_status() -> dict:
+    def get_status(self) -> dict:
         """
         Returns the status of the agent.
         """
@@ -61,6 +62,8 @@ class PassionAgent(ReActAgent):
         content = msg.content
         if not isinstance(content, list):
             content = [{"type": "text", "text": str(content)}]
+            
+        terminal_width = shutil.get_terminal_size().columns
 
         # Process blocks
         current_text = ""
@@ -83,7 +86,7 @@ class PassionAgent(ReActAgent):
                     header_key = f"{block_id}:header"
                     if header_key not in self._printed_block_ids[msg_id]:
                         # Separator before tool usage
-                        print_formatted_text(HTML(f"\n<ansigray>{'─' * 40}</ansigray>"))
+                        print_formatted_text(HTML(f"\n<ansigray>{'─' * terminal_width}</ansigray>"))
                         print_formatted_text(HTML(f"<b><ansiyellow>🛠️  Passion is using tool: {tool_name}</ansiyellow></b>"))
                         self._printed_block_ids[msg_id].add(header_key)
                         # Initialize code len tracking
@@ -129,7 +132,7 @@ class PassionAgent(ReActAgent):
                     if result_key not in self._printed_block_ids[msg_id]:
                         tool_name = block.get("name")
                         print_formatted_text(HTML(f"\n<b><ansigreen>✅ Tool {tool_name} executed successfully.</ansigreen></b>"))
-                        print_formatted_text(HTML(f"<ansigray>{'─' * 40}</ansigray>\n"))
+                        print_formatted_text(HTML(f"<ansigray>{'─' * terminal_width}</ansigray>\n"))
                         self._printed_block_ids[msg_id].add(result_key)
                         # Clean up tracking for this block
                         if block_id in self._printed_code_len:
@@ -166,7 +169,7 @@ class PassionAgent(ReActAgent):
              
              # Only print the heavy separator if it's likely a final response (no tool blocks)
              if not has_tool:
-                 print_formatted_text(HTML(f"<ansigray>{'═' * 60}</ansigray>"))
+                 print_formatted_text(HTML(f"<ansigray>{'═' * terminal_width}</ansigray>"))
              
              # Clean up state
              if msg_id in self._printed_text_len:
