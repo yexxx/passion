@@ -51,7 +51,7 @@ def main():
         model_name=openai_config.get("model_name", "gpt-3.5-turbo"),
         api_key=api_key,
         client_kwargs=client_kwargs,
-        stream=False
+        stream=True
     )
 
     # Get registered tools

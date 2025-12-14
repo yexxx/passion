@@ -49,12 +49,14 @@ passion
 **Features:**
 *   **Slash Commands:** Type `/` to trigger autocompletion for commands.
     *   `/help`: Show available commands.
-    *   `/status`: Show agent status (e.g., model name, messages processed, tools registered).
+    *   `/status`: Show agent status.
     *   `/quit` or `/exit`: Exit the session.
 *   **Autocomplete UX:**
     *   Only triggers when typing a command (starting with `/`).
     *   **Enter** selects the highlighted suggestion without submitting.
-*   **Integrated Tools:** The agent has access to various tools (e.g., code execution, file operations) which it can use to respond to queries and perform actions.
+*   **Integrated Tools:** The agent has access to various tools (e.g., code execution, file operations).
+    *   Tools are registered via `Toolkit`.
+    *   Tool execution is visualized with friendly icons (e.g., 🛠️, ✅) and stream output.
 *   **History:** Use Up/Down arrows to navigate command history.
 
 **Options:**

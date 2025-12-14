@@ -109,8 +109,7 @@ async def run_console_loop(agent):
         msg = Msg(name="User", role="user", content=user_input)
         
         try:
-            # The agent.reply method is async
-            response = await agent.reply(msg)
-            print(f"\nPassion: {response.content}\n")
+            # The agent.reply method is async and handles printing via streaming
+            await agent.reply(msg)
         except Exception as e:
             print(f"\nError: {e}\n")
