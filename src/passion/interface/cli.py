@@ -1,5 +1,6 @@
 import sys
 import asyncio
+import re
 from agentscope.message import Msg
 from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import WordCompleter
@@ -39,7 +40,9 @@ async def run_console_loop(agent):
 
     # Define commands for autocompletion
     commands = ['/help', '/status', '/exit', '/quit']
-    command_completer = WordCompleter(commands, ignore_case=True)
+    # Custom pattern to include '/' as part of the word
+    word_pattern = re.compile(r'^([a-zA-Z0-9_/]+)$')
+    command_completer = WordCompleter(commands, ignore_case=True, pattern=word_pattern)
 
     # Create a prompt session with history support (in-memory for now)
     session = PromptSession(completer=command_completer)

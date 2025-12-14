@@ -46,7 +46,7 @@ passion
 ```
 
 **Features:**
-*   **Slash Commands:** Type `/` to see available commands with autocompletion.
+*   **Slash Commands:** Type `/` to see available commands with autocompletion (supports partial matches like `/e` -> `/exit`).
     *   `/help`: Show available commands.
     *   `/status`: Show agent status (e.g., model name, messages processed).
     *   `/quit` or `/exit`: Exit the session.
