@@ -421,7 +421,7 @@ class PassionAgent(ReActAgent):
                         if block_id in self.display_manager.displays:
                             self.display_manager.stop_display(block_id)
 
-        # Handle streaming thinking text with dynamic display
+        # Handle streaming thinking text
         if current_thinking_text:
             previous_len = self._printed_thinking_len[msg_id]
             if len(current_thinking_text) > previous_len:
@@ -429,14 +429,13 @@ class PassionAgent(ReActAgent):
 
                 # Only print "Thinking:" prefix once
                 if previous_len == 0:
+                    # For thinking process, just print the initial indicator and text without rich panel
+                    # to avoid the display issues we saw earlier
                     print_formatted_text(HTML(f"<i><ansipurple>🤔 Thinking: </ansipurple></i>"), end="")
-                    # Create a dynamic display for thinking process
-                    thinking_block_id = f"{msg_id}_thinking"
-                    self.display_manager.create_display(thinking_block_id, title="AI Thinking Process")
-
-                # Update the thinking display with new content
-                thinking_block_id = f"{msg_id}_thinking"
-                self.display_manager.update_content(thinking_block_id, new_text)
+                    print(new_text, end="", flush=True)
+                else:
+                    # For subsequent updates, just print the new text
+                    print(new_text, end="", flush=True)
 
                 self._printed_thinking_len[msg_id] = len(current_thinking_text)
 
@@ -489,6 +488,4 @@ class PassionAgent(ReActAgent):
              if msg_id in self._printed_content_len:
                  del self._printed_content_len[msg_id]
              # Stop any remaining dynamic displays for this message
-             thinking_block_id = f"{msg_id}_thinking"
-             if thinking_block_id in self.display_manager.displays:
-                 self.display_manager.stop_display(thinking_block_id)
+             # (skip thinking display cleanup since we're not using rich panels for thinking anymore)
