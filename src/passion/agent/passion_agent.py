@@ -11,54 +11,9 @@ from agentscope.formatter import FormatterBase
 from prompt_toolkit import print_formatted_text, HTML
 
 # Import display manager from the new display module
-from passion.display import StreamDisplayManager, DisplayStyles
+from passion.display import StreamDisplayManager, DisplayStyles, MessageDisplayHandler
 
 # The StreamDisplayManager and other display classes are now imported from passion.display
-
-
-class StreamingBuffer:
-    """
-    Simple buffer for content that may be used with StreamDisplayManager.
-    """
-    def __init__(self, max_lines: int = 10, title: str = "Content"):
-        self.max_lines = max_lines
-        self.title = title
-        self.full_content = ""  # Store the complete content
-        self.display_content = ""  # Store currently displayed content
-        self.lock = threading.Lock()
-
-    def add_content(self, new_content: str) -> tuple[str, bool]:
-        """
-        Add content to the buffer and return (display_content, has_truncated) tuple.
-        """
-        with self.lock:
-            # Append new content to the full content
-            self.full_content += new_content
-
-            # Split full content into lines
-            all_lines = self.full_content.split('\n')
-
-            has_truncated = False
-            display_lines = []
-
-            if len(all_lines) > self.max_lines:
-                # Calculate how many lines are truncated
-                lines_truncated = len(all_lines) - self.max_lines
-                # Keep the last max_lines lines
-                recent_lines = all_lines[-self.max_lines:]
-
-                # Create display content with truncation indicator
-                display_lines = [f"[...{lines_truncated} lines omitted...]"] + recent_lines[1:]
-                has_truncated = True
-            else:
-                display_lines = all_lines[:]
-
-            self.display_content = "\n".join(display_lines)
-            return self.display_content, has_truncated
-
-    def get_display_content(self) -> str:
-        """Return the currently displayed content (truncated if needed)"""
-        return self.display_content
 
 
 class PassionAgent(ReActAgent):
@@ -83,18 +38,11 @@ class PassionAgent(ReActAgent):
         )
         self.toolkit = toolkit
 
-        # State for streaming text to avoid re-printing prefixes
-        self._printed_text_len = {}
-        self._printed_block_ids = {} # msg_id -> set(block_ids) (for headers/simple inputs)
-        self._printed_code_len = {} # block_id -> int (for streaming code/command for execute_python_code/shell)
-        self._printed_content_len = {} # block_id -> int (for streaming content for write_text_file)
-        self._printed_thinking_len = {} # msg_id -> int (for streaming thinking blocks)
-
-        # Add streaming buffers for content that should be limited
-        self._streaming_buffers = {} # block_id -> StreamingBuffer
-
         # Add display manager for dynamic rich displays
         self.display_manager = StreamDisplayManager()
+
+        # Add message display handler to manage all display logic
+        self.display_handler = MessageDisplayHandler(self.display_manager, name=name)
 
     async def _reasoning(self, tool_choice: Union[Literal["auto", "none", "required"], None] = None):
         """
@@ -189,213 +137,16 @@ class PassionAgent(ReActAgent):
         if self._disable_console_output:
             return
 
-        msg_id = msg.id
-        if msg_id not in self._printed_text_len:
-            self._printed_text_len[msg_id] = 0
-            self._printed_block_ids[msg_id] = set()
-            self._printed_thinking_len[msg_id] = 0 # Initialize for thinking blocks
-            self._printed_content_len[msg_id] = {} # Initialize for content streaming
+        # Use the display handler to manage all display logic
+        self.display_handler.handle_tool_use_display(msg, last)
+        self.display_handler.handle_tool_result_display(msg)
+        self.display_handler.handle_thinking_display(msg)
+        self.display_handler.handle_text_display(msg)
 
-        content = msg.content
-        # print(f"MMMMMMMMMMMMM{msg}")
-        if not isinstance(content, list):
-            content = [{"type": "text", "text": str(content)}]
-
-        terminal_width = shutil.get_terminal_size().columns
-
-        # Accumulate thinking text for streaming
-        current_thinking_text = ""
-        # Process blocks
-        current_text = ""
-        for block in content:
-            block_type = block.get("type")
-            block_id = block.get("id")
-
-            if block_type == "text":
-                current_text += block.get("text", "")
-
-            elif block_type == "thinking":
-                current_thinking_text += block.get("thinking", "")
-
-            elif block_type == "tool_use":
-                # print(f"BBBBBBBBBBB{block}")
-                if block_id:
-                    tool_name = block.get("name")
-                    tool_input = block.get("input", {})
-
-                    # Print Header once
-                    header_key = f"{block_id}:header"
-                    if header_key not in self._printed_block_ids[msg_id]:
-                        # Separator before tool usage
-                        print_formatted_text(HTML(f"\n{DisplayStyles.separator_line(terminal_width)}"))
-                        print_formatted_text(HTML(DisplayStyles.TOOL_USE_STYLE.format(tool_name)))
-                        self._printed_block_ids[msg_id].add(header_key)
-                        # Initialize tracking for specific content types
-                        self._printed_code_len[block_id] = 0
-                        if block_id not in self._printed_content_len:
-                            self._printed_content_len[block_id] = 0 # Initialize for write_text_file content
-
-                    # Stream Code for execute_python_code
-                    if tool_name == "execute_python_code" and "code" in tool_input:
-                        code = tool_input["code"]
-                        prev_len = self._printed_code_len.get(block_id, 0)
-                        if len(code) > prev_len:
-                            if prev_len == 0:
-                                print_formatted_text(HTML("    <ansigray>Code:</ansigray>\n"), end="")
-                                # Use the display manager for dynamic updates of python code
-                                self.display_manager.create_display(
-                                    block_id,
-                                    title="Python Code Execution"
-                                )
-                            new_chunk = code[prev_len:]
-                            # Update the dynamic display with new content
-                            self.display_manager.update_content(block_id, new_chunk)
-                            self._printed_code_len[block_id] = len(code)
-
-                    elif tool_name == "execute_shell_command" and "command" in tool_input:
-                        command = tool_input["command"]
-                        prev_len = self._printed_code_len.get(block_id, 0)
-                        if len(command) > prev_len:
-                             if prev_len == 0:
-                                print_formatted_text(HTML("    <ansigray>Command: </ansigray>"), end="")
-                                # Use the display manager for dynamic updates of shell commands
-                                self.display_manager.create_display(
-                                    block_id,
-                                    title="Shell Command Execution"
-                                )
-                             new_chunk = command[prev_len:]
-                             # Update the dynamic display with new content
-                             self.display_manager.update_content(block_id, new_chunk)
-                             self._printed_code_len[block_id] = len(command)
-
-                    # Stream Content for write_text_file with dynamic display
-                    elif tool_name == "write_text_file" and "content" in tool_input:
-                        file_content = tool_input["content"]
-                        prev_len = self._printed_content_len.get(block_id, 0)
-                        if len(file_content) > prev_len:
-                            if prev_len == 0:
-                                print_formatted_text(HTML(f"    <ansigray>File Path: {tool_input.get('file_path', 'N/A')}</ansigray>\n"), end="")
-                                print_formatted_text(HTML("    <ansigray>Content:</ansigray>\n"), end="")
-                                # Use the display manager for dynamic updates
-                                self.display_manager.create_display(
-                                    block_id,
-                                    title=f"Writing to: {tool_input.get('file_path', 'unknown')}"
-                                )
-
-                            new_chunk = file_content[prev_len:]
-
-                            # Update the dynamic display with new content
-                            self.display_manager.update_content(block_id, new_chunk)
-
-                            self._printed_content_len[block_id] = len(file_content)
-
-                    elif tool_input:
-                        # Only print general input when message is complete to ensure it's fully populated
-                        if last:
-                            input_key = f"{block_id}:input"
-                            if input_key not in self._printed_block_ids[msg_id]:
-                                print_formatted_text(HTML(f"    <ansigray>Input: {tool_input}</ansigray>"))
-                                self._printed_block_ids[msg_id].add(input_key)
-
-
-            elif block_type == "tool_result":
-                if block_id:
-                    result_key = f"{block_id}:result"
-                    if result_key not in self._printed_block_ids[msg_id]:
-                        tool_name = block.get("name")
-                        print_formatted_text(HTML(f"\n{DisplayStyles.TOOL_RESULT_STYLE.format(tool_name)}"))
-
-                        # Print Tool Output (e.g. Plan content)
-                        tool_output = block.get("output")
-                        output_text = ""
-                        if isinstance(tool_output, list):
-                            for out_block in tool_output:
-                                if isinstance(out_block, dict) and out_block.get("type") == "text":
-                                    output_text += out_block.get("text", "")
-                                elif isinstance(out_block, str):
-                                    output_text += out_block
-                        elif isinstance(tool_output, str):
-                            output_text = tool_output
-
-                        if output_text:
-                            # Indent output slightly or print as is
-                            print_formatted_text(HTML(f"<ansigray>{output_text}</ansigray>"))
-
-                        print_formatted_text(HTML(f"{DisplayStyles.separator_line(terminal_width)}\n"))
-                        self._printed_block_ids[msg_id].add(result_key)
-                        # Clean up tracking for this block
-                        if block_id in self._printed_code_len:
-                            del self._printed_code_len[block_id]
-                        if block_id in self._printed_content_len:
-                            del self._printed_content_len[block_id]
-                        # Stop the dynamic display if it was running
-                        if block_id in self.display_manager.displays:
-                            self.display_manager.stop_display(block_id)
-
-        # We'll implement line-limited thinking display using a simple approach
-        # that only updates when needed and avoids duplicate output
-        if current_thinking_text:
-            previous_len = self._printed_thinking_len[msg_id]
-            if len(current_thinking_text) > previous_len:
-                new_text = current_thinking_text[previous_len:]
-
-                # Only print "Thinking:" prefix once
-                if previous_len == 0:
-                    print_formatted_text(HTML(DisplayStyles.THINKING_STYLE), end="")
-
-                # Simply print the new text to maintain streaming behavior
-                # without complex line counting that causes duplicate output
-                print(new_text, end="", flush=True)
-
-                self._printed_thinking_len[msg_id] = len(current_thinking_text)
-
-        # Handle streaming text (agent's final response)
-        if current_text:
-            previous_len = self._printed_text_len[msg_id]
-            if len(current_text) > previous_len:
-                new_text = current_text[previous_len:]
-
-                # If this is the first text chunk, print the agent name
-                if previous_len == 0:
-                    print_formatted_text(HTML(f"<b><ansicyan>{self.name}: </ansicyan></b>"), end="")
-
-                # Print text (streaming).
-                # We use regular print for the content to avoid HTML escaping issues with LLM output
-                # unless we want to parse markdown which rich does better.
-                # For now, plain text streaming is safer.
-                print(new_text, end="", flush=True)
-                self._printed_text_len[msg_id] = len(current_text)
+        # Perform final cleanup
+        self.display_handler.handle_final_cleanup(msg, last)
 
         # For intermediate messages, flush more often to enable streaming
         if not last:
             import sys
             sys.stdout.flush()
-
-        if last:
-             # End of message
-             print("") # Newline
-
-             # Check if this message was an intermediate step (Tool Use/Result)
-             has_tool = False
-             if isinstance(content, list):
-                 for block in content:
-                     if block.get("type") in ["tool_use", "tool_result", "thinking"]:
-                         has_tool = True
-                         break
-
-             # Only print the heavy separator if it's likely a final response (no tool blocks)
-             if not has_tool:
-                 print_formatted_text(HTML(f"<ansigray>{'═' * terminal_width}</ansigray>"))
-
-             # Clean up state
-             if msg_id in self._printed_text_len:
-                 del self._printed_text_len[msg_id]
-             if msg_id in self._printed_block_ids:
-                 del self._printed_block_ids[msg_id]
-             if msg_id in self._printed_thinking_len:
-                 del self._printed_thinking_len[msg_id]
-             # Clean up content streaming tracker for this message ID
-             if msg_id in self._printed_content_len:
-                 del self._printed_content_len[msg_id]
-             # Stop any remaining dynamic displays for this message
-             # (skip thinking display cleanup since we're not using rich panels for thinking anymore)
