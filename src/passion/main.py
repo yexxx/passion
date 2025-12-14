@@ -2,6 +2,8 @@ import sys
 import argparse
 import logging
 import asyncio
+import io
+import contextlib # New imports
 import agentscope
 from agentscope.message import Msg
 from agentscope.model import OpenAIChatModel
@@ -18,6 +20,29 @@ from passion.interface.cli import run_console_loop
 from passion.tools.registry import get_registered_tools
 
 logger = logging.getLogger(__name__)
+
+# Define a context manager to suppress specific warnings from agentscope to stderr
+@contextlib.contextmanager
+def suppress_agentscope_warnings():
+    old_stderr = sys.stderr
+    # Use io.StringIO to capture stderr output
+    captured_stderr = io.StringIO()
+    sys.stderr = captured_stderr
+    try:
+        yield
+    finally:
+        sys.stderr = old_stderr # Restore original stderr
+        # Get the captured output
+        output = captured_stderr.getvalue()
+        # Filter out specific warning patterns
+        filtered_output = []
+        for line in output.splitlines():
+            if "Unsupported block type thinking in the message, skipped." not in line:
+                filtered_output.append(line)
+        
+        # Write remaining output to original stderr
+        if filtered_output:
+            old_stderr.write("\n".join(filtered_output) + "\n")
 
 def main():
     parser = argparse.ArgumentParser(description="Passion AI Agent")
@@ -39,8 +64,9 @@ def main():
         logger.error("API key not set in .config/model_config.json. Please update it.")
         sys.exit(1)
 
-    # Initialize agentscope
-    agentscope.init()
+    # Initialize agentscope, suppressing specific warnings during its init phase
+    with suppress_agentscope_warnings():
+        agentscope.init()
 
     # Instantiate the OpenAI Chat Model
     client_kwargs = {}
@@ -79,4 +105,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 

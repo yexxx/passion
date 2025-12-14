@@ -89,7 +89,7 @@ The application looks for `config.json` in the following order:
 ```
 
 ### Logging
-*   **Console:** By default, only errors are printed to the console (`--log-level ERROR`). Please note that some warning messages from third-party libraries (specifically `agentscope.formatter._openai_formatter` related to "thinking" blocks) might still appear due to their internal logging configurations which override custom settings. These can often be ignored or their source module's logging behavior might need to be directly addressed in the library itself.
+*   **Console:** By default, only errors are printed to the console (`--log-level ERROR`). Warning messages from certain third-party libraries (specifically `agentscope.formatter._openai_formatter` related to "thinking" blocks) are now suppressed using `sys.stderr` redirection during the `agentscope.init()` phase.
 *   **File:** Detailed logs (INFO level and above) are always written to `.passion/passion.log` in the project root (or home directory if project root is not writable).
 
 ## Development Conventions
