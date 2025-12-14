@@ -57,7 +57,7 @@ passion
 *   **Integrated Tools:** The agent has access to various tools (e.g., code execution, file operations).
     *   Tools are registered via `Toolkit`.
     *   Tool execution is visualized with colored output (Yellow for tool use, Green for success) and detailed input display (Gray for code/inputs).
-*   **Rich Output:** The agent's responses and tool activities are styled with colors for better readability (Passion's name in Cyan, Tool logs in distinct colors).
+*   **Rich Output:** The agent's responses and tool activities are styled with colors and visual separators (lines) for better readability.
 *   **History:** Use Up/Down arrows to navigate command history.
 
 **Options:**

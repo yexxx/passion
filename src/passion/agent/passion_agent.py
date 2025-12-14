@@ -82,7 +82,9 @@ class PassionAgent(ReActAgent):
                     # Print Header once
                     header_key = f"{block_id}:header"
                     if header_key not in self._printed_block_ids[msg_id]:
-                        print_formatted_text(HTML(f"\n<b><ansiyellow>🛠️  Passion is using tool: {tool_name}</ansiyellow></b>"))
+                        # Separator before tool usage
+                        print_formatted_text(HTML(f"\n<ansigray>{'─' * 40}</ansigray>"))
+                        print_formatted_text(HTML(f"<b><ansiyellow>🛠️  Passion is using tool: {tool_name}</ansiyellow></b>"))
                         self._printed_block_ids[msg_id].add(header_key)
                         # Initialize code len tracking
                         self._printed_code_len[block_id] = 0
@@ -126,7 +128,8 @@ class PassionAgent(ReActAgent):
                     result_key = f"{block_id}:result"
                     if result_key not in self._printed_block_ids[msg_id]:
                         tool_name = block.get("name")
-                        print_formatted_text(HTML(f"\n<b><ansigreen>✅ Tool {tool_name} executed successfully.</ansigreen></b>\n"))
+                        print_formatted_text(HTML(f"\n<b><ansigreen>✅ Tool {tool_name} executed successfully.</ansigreen></b>"))
+                        print_formatted_text(HTML(f"<ansigray>{'─' * 40}</ansigray>\n"))
                         self._printed_block_ids[msg_id].add(result_key)
                         # Clean up tracking for this block
                         if block_id in self._printed_code_len:
@@ -152,6 +155,19 @@ class PassionAgent(ReActAgent):
         if last:
              # End of message
              print("") # Newline
+             
+             # Check if this message was an intermediate step (Tool Use/Result)
+             has_tool = False
+             if isinstance(content, list):
+                 for block in content:
+                     if block.get("type") in ["tool_use", "tool_result"]:
+                         has_tool = True
+                         break
+             
+             # Only print the heavy separator if it's likely a final response (no tool blocks)
+             if not has_tool:
+                 print_formatted_text(HTML(f"<ansigray>{'═' * 60}</ansigray>"))
+             
              # Clean up state
              if msg_id in self._printed_text_len:
                  del self._printed_text_len[msg_id]
