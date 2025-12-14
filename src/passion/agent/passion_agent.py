@@ -10,104 +10,10 @@ from agentscope.memory import MemoryBase
 from agentscope.formatter import FormatterBase
 from prompt_toolkit import print_formatted_text, HTML
 
-# Import rich for advanced terminal UI
-from rich.console import Console
-from rich.panel import Panel
-from rich.text import Text
-from rich.live import Live
-from rich.rule import Rule
-from rich.align import Align
+# Import display manager from the new display module
+from passion.display import StreamDisplayManager, DisplayStyles
 
-class StreamDisplayManager:
-    """
-    Manages dynamic streaming displays with line limits using rich Live.
-    Each tool gets its own Live display that updates as content comes in.
-    Optimized to reduce redraws during scrolling.
-    """
-    def __init__(self):
-        self.displays = {}  # block_id -> Live display
-        self.buffers = {}   # block_id -> content buffer
-        self.max_lines = 10
-        self.console = Console()
-
-    def create_display(self, block_id: str, title: str = "Content"):
-        """Create a new live display for a specific block"""
-        if block_id not in self.displays:
-            # Initialize content buffer
-            self.buffers[block_id] = {
-                'full_content': '',
-                'last_display_content': '',
-                'title': title
-            }
-
-            # Create a panel for the display content
-            panel = Panel(
-                Text(self.buffers[block_id]['last_display_content']),
-                title=title,
-                border_style="blue",
-                height=self.max_lines + 2  # Add space for title and borders
-            )
-
-            # Create Live display
-            live = Live(
-                panel,
-                console=self.console,
-                refresh_per_second=8,  # Update 8 times per second for smoother updates
-                transient=False
-            )
-
-            self.displays[block_id] = {
-                'live': live,
-                'panel': panel
-            }
-
-            # Start the live display
-            live.start()
-
-    def update_content(self, block_id: str, new_content: str):
-        """Add new content to a display and update it only if display content changed"""
-        if block_id not in self.buffers:
-            self.create_display(block_id, "Content")
-
-        # Append new content to the full content
-        self.buffers[block_id]['full_content'] += new_content
-
-        # Split into lines and limit display
-        all_lines = self.buffers[block_id]['full_content'].split('\n')
-
-        if len(all_lines) > self.max_lines:
-            # Calculate truncated lines
-            lines_truncated = len(all_lines) - self.max_lines
-            recent_lines = all_lines[-self.max_lines:]
-            display_lines = [f"[dim][...{lines_truncated} lines omitted...][/dim]"] + recent_lines[1:]
-        else:
-            display_lines = all_lines[:]
-
-        # Check if display content actually changed before updating
-        new_display_content = '\n'.join(display_lines)
-
-        # Only update if the display content changed to reduce redraws
-        if new_display_content != self.buffers[block_id]['last_display_content']:
-            self.buffers[block_id]['last_display_content'] = new_display_content
-
-            # Update the live display
-            if block_id in self.displays:
-                live_info = self.displays[block_id]
-                new_panel = Panel(
-                    Text(new_display_content),
-                    title=self.buffers[block_id]['title'],
-                    border_style="blue",
-                    height=self.max_lines + 2
-                )
-                live_info['live'].update(new_panel)
-
-    def stop_display(self, block_id: str):
-        """Stop the live display for a specific block"""
-        if block_id in self.displays:
-            self.displays[block_id]['live'].stop()
-            del self.displays[block_id]
-            if block_id in self.buffers:
-                del self.buffers[block_id]
+# The StreamDisplayManager and other display classes are now imported from passion.display
 
 
 class StreamingBuffer:
@@ -321,8 +227,8 @@ class PassionAgent(ReActAgent):
                     header_key = f"{block_id}:header"
                     if header_key not in self._printed_block_ids[msg_id]:
                         # Separator before tool usage
-                        print_formatted_text(HTML(f"\n<ansigray>{'─' * terminal_width}</ansigray>"))
-                        print_formatted_text(HTML(f"<b><ansiyellow>🛠️  Passion is using tool: {tool_name}</ansiyellow></b>"))
+                        print_formatted_text(HTML(f"\n{DisplayStyles.separator_line(terminal_width)}"))
+                        print_formatted_text(HTML(DisplayStyles.TOOL_USE_STYLE.format(tool_name)))
                         self._printed_block_ids[msg_id].add(header_key)
                         # Initialize tracking for specific content types
                         self._printed_code_len[block_id] = 0
@@ -397,7 +303,7 @@ class PassionAgent(ReActAgent):
                     result_key = f"{block_id}:result"
                     if result_key not in self._printed_block_ids[msg_id]:
                         tool_name = block.get("name")
-                        print_formatted_text(HTML(f"\n<b><ansigreen>✅ Tool {tool_name} executed successfully.</ansigreen></b>"))
+                        print_formatted_text(HTML(f"\n{DisplayStyles.TOOL_RESULT_STYLE.format(tool_name)}"))
 
                         # Print Tool Output (e.g. Plan content)
                         tool_output = block.get("output")
@@ -415,7 +321,7 @@ class PassionAgent(ReActAgent):
                             # Indent output slightly or print as is
                             print_formatted_text(HTML(f"<ansigray>{output_text}</ansigray>"))
 
-                        print_formatted_text(HTML(f"<ansigray>{'─' * terminal_width}</ansigray>\n"))
+                        print_formatted_text(HTML(f"{DisplayStyles.separator_line(terminal_width)}\n"))
                         self._printed_block_ids[msg_id].add(result_key)
                         # Clean up tracking for this block
                         if block_id in self._printed_code_len:
@@ -435,7 +341,7 @@ class PassionAgent(ReActAgent):
 
                 # Only print "Thinking:" prefix once
                 if previous_len == 0:
-                    print_formatted_text(HTML(f"<i><ansipurple>🤔 Thinking: </ansipurple></i>"), end="")
+                    print_formatted_text(HTML(DisplayStyles.THINKING_STYLE), end="")
 
                 # Simply print the new text to maintain streaming behavior
                 # without complex line counting that causes duplicate output
