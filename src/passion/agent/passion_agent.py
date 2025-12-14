@@ -22,7 +22,9 @@ class PassionAgent(AgentBase):
         
         # Call the LLM
         # Pass the toolkit for function calling if available
-        response = await self.llm(messages, tools=self.toolkit) # Pass the toolkit to LLM
+        # AgentScope's LLMs expect tool schemas (JSON-serializable dicts), not the Toolkit object itself.
+        tool_schemas = self.toolkit.get_json_schemas() if self.toolkit else None
+        response = await self.llm(messages, tools=tool_schemas) # Pass the tool schemas to LLM
 
         # Extract text content (handle ToolResponse if any)
         text_content = ""

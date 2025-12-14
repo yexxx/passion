@@ -54,7 +54,8 @@ passion
 *   **Autocomplete UX:**
     *   Only triggers when typing a command (starting with `/`).
     *   **Enter** selects the highlighted suggestion without submitting.
-*   **Integrated Tools:** The agent has access to various tools (e.g., code execution, file operations) which it can use to respond to queries.
+*   **Integrated Tools:** The agent has access to various tools (e.g., code execution, file operations).
+    *   Tools are registered via `Toolkit` and schemas are passed to the LLM for function calling.
 *   **History:** Use Up/Down arrows to navigate command history.
 
 **Options:**
