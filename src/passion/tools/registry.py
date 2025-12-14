@@ -1,4 +1,5 @@
 from agentscope.tool import Toolkit, execute_python_code, execute_shell_command, view_text_file, write_text_file
+from passion.tools.planning import create_plan, mark_task_completed, get_plan, add_task
 
 def get_registered_tools() -> Toolkit:
     """
@@ -13,6 +14,13 @@ def get_registered_tools() -> Toolkit:
     # Register file operation tools
     toolkit.register_tool_function(view_text_file)
     toolkit.register_tool_function(write_text_file)
+    
+    # Register planning tools
+    toolkit.register_tool_function(create_plan)
+    toolkit.register_tool_function(mark_task_completed)
+    toolkit.register_tool_function(get_plan)
+    toolkit.register_tool_function(add_task)
+
     # Note: insert_text_file is also available but might be less commonly used initially
 
     # You can also register multi-modality tools if needed and API keys are configured:

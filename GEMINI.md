@@ -1,7 +1,7 @@
 # Project Context: Passion AI Agent
 
 ## Project Overview
-This directory contains the "Passion" AI agent project, a modular Python application built on top of **AgentScope**. It is designed to be an enthusiastic and energetic AI assistant that runs from the command line, offering an interactive chat experience with command support, autocompletion, integrated tools, and rich output formatting.
+This directory contains the "Passion" AI agent project, a modular Python application built on top of **AgentScope**. It is designed to be an enthusiastic and energetic AI assistant that runs from the command line, offering an interactive chat experience with command support, autocompletion, integrated tools, planning capabilities, and rich output formatting.
 
 ## Key Technologies
 *   **Language:** Python 3.12
@@ -27,7 +27,7 @@ This directory contains the "Passion" AI agent project, a modular Python applica
         *   `log/`: Logging configuration (`manager.py`).
         *   `prompt/`: Prompt definitions (`system.py`).
         *   `interface/`: User interface components (`cli.py` using `prompt_toolkit`).
-        *   `tools/`: Tool definitions and registry (`registry.py`).
+        *   `tools/`: Tool definitions and registry (`registry.py`, `planning.py`).
         *   `utils/`: Utility functions (`common.py`).
 
 ## Building and Running
@@ -54,10 +54,14 @@ passion
 *   **Autocomplete UX:**
     *   Only triggers when typing a command (starting with `/`).
     *   **Enter** selects the highlighted suggestion without submitting.
-*   **Integrated Tools:** The agent has access to various tools (e.g., code execution, file operations).
-    *   Tools are registered via `Toolkit`.
-    *   Tool execution is visualized with colored output (Yellow for tool use, Green for success) and detailed input display (Gray for code/inputs).
-*   **Rich Output:** The agent's responses and tool activities are styled with colors and dynamic visual separators (adapting to terminal width) for better readability.
+*   **Integrated Tools:**
+    *   **Code Execution:** Python (`execute_python_code`) and Shell (`execute_shell_command`).
+    *   **File Operations:** Read/Write text files.
+    *   **Planning:** The agent can create, track, and update step-by-step plans for complex tasks.
+*   **Rich Output:**
+    *   Visual separators adapt to terminal width.
+    *   Tool inputs (code, commands) are displayed clearly.
+    *   Colors distinguish between agent, tool usage, and results.
 *   **History:** Use Up/Down arrows to navigate command history.
 
 **Options:**
@@ -84,7 +88,7 @@ The application looks for `config.json` in the following order:
 ```
 
 ### Logging
-*   **Console:** By default, only errors are printed to the console (`--log-level ERROR`). Warning messages from certain third-party libraries (e.g., AgentScope's internal formatters) may still appear due to their independent logging configurations. Use `--log-level WARNING` or `INFO` to see more verbose console output.
+*   **Console:** By default, only warnings and errors are printed to the console. Use `--log-level` to change this.
 *   **File:** Detailed logs (INFO level and above) are always written to `.passion/passion.log` in the project root (or home directory if project root is not writable).
 
 ## Development Conventions
