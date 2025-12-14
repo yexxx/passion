@@ -421,7 +421,7 @@ class PassionAgent(ReActAgent):
                         if block_id in self.display_manager.displays:
                             self.display_manager.stop_display(block_id)
 
-        # Handle streaming thinking text
+        # Handle streaming thinking text with dynamic display
         if current_thinking_text:
             previous_len = self._printed_thinking_len[msg_id]
             if len(current_thinking_text) > previous_len:
@@ -430,8 +430,14 @@ class PassionAgent(ReActAgent):
                 # Only print "Thinking:" prefix once
                 if previous_len == 0:
                     print_formatted_text(HTML(f"<i><ansipurple>🤔 Thinking: </ansipurple></i>"), end="")
+                    # Create a dynamic display for thinking process
+                    thinking_block_id = f"{msg_id}_thinking"
+                    self.display_manager.create_display(thinking_block_id, title="AI Thinking Process")
 
-                print(new_text, end="", flush=True)
+                # Update the thinking display with new content
+                thinking_block_id = f"{msg_id}_thinking"
+                self.display_manager.update_content(thinking_block_id, new_text)
+
                 self._printed_thinking_len[msg_id] = len(current_thinking_text)
 
         # Handle streaming text (agent's final response)
@@ -482,3 +488,7 @@ class PassionAgent(ReActAgent):
              # Clean up content streaming tracker for this message ID
              if msg_id in self._printed_content_len:
                  del self._printed_content_len[msg_id]
+             # Stop any remaining dynamic displays for this message
+             thinking_block_id = f"{msg_id}_thinking"
+             if thinking_block_id in self.display_manager.displays:
+                 self.display_manager.stop_display(thinking_block_id)
