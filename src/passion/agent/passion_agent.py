@@ -23,11 +23,10 @@ class PassionAgent(ReActAgent):
             memory=memory,
             toolkit=toolkit,
         )
-        self.toolkit = toolkit
-        
         # State for streaming text to avoid re-printing prefixes
         self._printed_text_len = {} 
-        self._printed_block_ids = {}
+        self._printed_block_ids = {} # msg_id -> set(block_ids) (for headers/simple inputs)
+        self._printed_code_len = {} # block_id -> int (for streaming code/command)
 
     def get_status(self) -> dict:
         """
@@ -73,16 +72,62 @@ class PassionAgent(ReActAgent):
                 pass
 
             elif block_type == "tool_use":
-                if block_id and block_id not in self._printed_block_ids[msg_id]:
+                if block_id:
                     tool_name = block.get("name")
-                    print(f"\n🛠️  Passion is using tool: {tool_name}")
-                    self._printed_block_ids[msg_id].add(block_id)
+                    tool_input = block.get("input", {})
+                    
+                    # Print Header once
+                    if block_id not in self._printed_block_ids[msg_id]:
+                        print(f"\n🛠️  Passion is using tool: {tool_name}")
+                        self._printed_block_ids[msg_id].add(block_id)
+                        # Initialize code len tracking
+                        self._printed_code_len[block_id] = 0
+
+                    # Stream Code/Command
+                    if tool_name == "execute_python_code" and "code" in tool_input:
+                        code = tool_input["code"]
+                        prev_len = self._printed_code_len.get(block_id, 0)
+                        if len(code) > prev_len:
+                            if prev_len == 0:
+                                print(f"    Code:\n", end="")
+                            print(code[prev_len:], end="", flush=True)
+                            self._printed_code_len[block_id] = len(code)
+                            
+                    elif tool_name == "execute_shell_command" and "command" in tool_input:
+                        command = tool_input["command"]
+                        prev_len = self._printed_code_len.get(block_id, 0)
+                        if len(command) > prev_len:
+                             if prev_len == 0:
+                                print(f"    Command: ", end="")
+                             print(command[prev_len:], end="", flush=True)
+                             self._printed_code_len[block_id] = len(command)
+                             
+                    elif tool_input and "input_printed" not in self._printed_code_len.get(block_id, {}):
+                        # For other tools, print input once fully? 
+                        # Or just print if we haven't.
+                        # Using _printed_code_len as a flag for simplicity (or make a new set)
+                        # Let's just print it if available and not printed
+                        # But input is dict.
+                        pass # Simplify for now, focus on code/command streaming
+
             
             elif block_type == "tool_result":
+                # tool_result comes in a separate message usually, but if streamed in same msg context?
+                # Actually tool_result block ID refers to the tool use ID usually? No, it has its own ID but links to call ID.
+                # In AgentScope, tool_result has `id` equal to the `tool_use` id? 
+                # Let's check log: tool_use id="execute_python_code:0", tool_result id="execute_python_code:0".
+                # Yes!
+                
+                # So we can track printed results using same ID logic but maybe distinct set?
+                # or just use _printed_block_ids[msg_id] if msg_id is different for result message.
+                
                 if block_id and block_id not in self._printed_block_ids[msg_id]:
                     tool_name = block.get("name")
-                    print(f"✅ Tool {tool_name} executed successfully.\n")
+                    print(f"\n✅ Tool {tool_name} executed successfully.\n")
                     self._printed_block_ids[msg_id].add(block_id)
+                    # Clean up tracking for this block
+                    if block_id in self._printed_code_len:
+                        del self._printed_code_len[block_id]
 
         # Handle streaming text
         if current_text:
