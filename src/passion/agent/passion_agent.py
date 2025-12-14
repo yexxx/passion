@@ -1,5 +1,7 @@
 import shutil
 import asyncio
+import threading
+import sys
 from typing import Any, Optional, Union, List, Literal
 from agentscope.agent import ReActAgent
 from agentscope.message import Msg, AudioBlock
@@ -7,6 +9,146 @@ from agentscope.tool import Toolkit
 from agentscope.memory import MemoryBase
 from agentscope.formatter import FormatterBase
 from prompt_toolkit import print_formatted_text, HTML
+
+# Import rich for advanced terminal UI
+from rich.console import Console
+from rich.panel import Panel
+from rich.text import Text
+from rich.live import Live
+from rich.rule import Rule
+from rich.align import Align
+
+class StreamDisplayManager:
+    """
+    Manages dynamic streaming displays with line limits using rich Live.
+    Each tool gets its own Live display that updates as content comes in.
+    """
+    def __init__(self):
+        self.displays = {}  # block_id -> Live display
+        self.buffers = {}   # block_id -> content buffer
+        self.max_lines = 10
+        self.console = Console()
+
+    def create_display(self, block_id: str, title: str = "Content"):
+        """Create a new live display for a specific block"""
+        if block_id not in self.displays:
+            # Initialize content buffer
+            self.buffers[block_id] = {
+                'full_content': '',
+                'display_content': '',
+                'title': title
+            }
+
+            # Create a panel for the display content
+            panel = Panel(
+                Text(self.buffers[block_id]['display_content']),
+                title=title,
+                border_style="blue",
+                height=self.max_lines + 2  # Add space for title and borders
+            )
+
+            # Create Live display
+            live = Live(
+                panel,
+                console=self.console,
+                refresh_per_second=4,  # Update 4 times per second
+                transient=False
+            )
+
+            self.displays[block_id] = {
+                'live': live,
+                'panel': panel
+            }
+
+            # Start the live display
+            live.start()
+
+    def update_content(self, block_id: str, new_content: str):
+        """Add new content to a display and update it"""
+        if block_id not in self.buffers:
+            self.create_display(block_id, "Content")
+
+        # Append new content to the full content
+        self.buffers[block_id]['full_content'] += new_content
+
+        # Split into lines and limit display
+        all_lines = self.buffers[block_id]['full_content'].split('\n')
+
+        if len(all_lines) > self.max_lines:
+            # Calculate truncated lines
+            lines_truncated = len(all_lines) - self.max_lines
+            recent_lines = all_lines[-self.max_lines:]
+            display_lines = [f"[dim][...{lines_truncated} lines omitted...][/dim]"] + recent_lines[1:]
+        else:
+            display_lines = all_lines[:]
+
+        # Update display content
+        self.buffers[block_id]['display_content'] = '\n'.join(display_lines)
+
+        # Update the live display
+        if block_id in self.displays:
+            live_info = self.displays[block_id]
+            new_panel = Panel(
+                Text(self.buffers[block_id]['display_content']),
+                title=self.buffers[block_id]['title'],
+                border_style="blue",
+                height=self.max_lines + 2
+            )
+            live_info['live'].update(new_panel)
+
+    def stop_display(self, block_id: str):
+        """Stop the live display for a specific block"""
+        if block_id in self.displays:
+            self.displays[block_id]['live'].stop()
+            del self.displays[block_id]
+            if block_id in self.buffers:
+                del self.buffers[block_id]
+
+
+class StreamingBuffer:
+    """
+    Simple buffer for content that may be used with StreamDisplayManager.
+    """
+    def __init__(self, max_lines: int = 10, title: str = "Content"):
+        self.max_lines = max_lines
+        self.title = title
+        self.full_content = ""  # Store the complete content
+        self.display_content = ""  # Store currently displayed content
+        self.lock = threading.Lock()
+
+    def add_content(self, new_content: str) -> tuple[str, bool]:
+        """
+        Add content to the buffer and return (display_content, has_truncated) tuple.
+        """
+        with self.lock:
+            # Append new content to the full content
+            self.full_content += new_content
+
+            # Split full content into lines
+            all_lines = self.full_content.split('\n')
+
+            has_truncated = False
+            display_lines = []
+
+            if len(all_lines) > self.max_lines:
+                # Calculate how many lines are truncated
+                lines_truncated = len(all_lines) - self.max_lines
+                # Keep the last max_lines lines
+                recent_lines = all_lines[-self.max_lines:]
+
+                # Create display content with truncation indicator
+                display_lines = [f"[...{lines_truncated} lines omitted...]"] + recent_lines[1:]
+                has_truncated = True
+            else:
+                display_lines = all_lines[:]
+
+            self.display_content = "\n".join(display_lines)
+            return self.display_content, has_truncated
+
+    def get_display_content(self) -> str:
+        """Return the currently displayed content (truncated if needed)"""
+        return self.display_content
+
 
 class PassionAgent(ReActAgent):
     def __init__(
@@ -36,6 +178,12 @@ class PassionAgent(ReActAgent):
         self._printed_code_len = {} # block_id -> int (for streaming code/command for execute_python_code/shell)
         self._printed_content_len = {} # block_id -> int (for streaming content for write_text_file)
         self._printed_thinking_len = {} # msg_id -> int (for streaming thinking blocks)
+
+        # Add streaming buffers for content that should be limited
+        self._streaming_buffers = {} # block_id -> StreamingBuffer
+
+        # Add display manager for dynamic rich displays
+        self.display_manager = StreamDisplayManager()
 
     async def _reasoning(self, tool_choice: Union[Literal["auto", "none", "required"], None] = None):
         """
@@ -176,15 +324,21 @@ class PassionAgent(ReActAgent):
                         if block_id not in self._printed_content_len:
                             self._printed_content_len[block_id] = 0 # Initialize for write_text_file content
 
-                    # Stream Code/Command for execute_python_code/execute_shell_command
+                    # Stream Code for execute_python_code
                     if tool_name == "execute_python_code" and "code" in tool_input:
                         code = tool_input["code"]
                         prev_len = self._printed_code_len.get(block_id, 0)
                         if len(code) > prev_len:
                             if prev_len == 0:
                                 print_formatted_text(HTML("    <ansigray>Code:</ansigray>\n"), end="")
+                                # Use the display manager for dynamic updates of python code
+                                self.display_manager.create_display(
+                                    block_id,
+                                    title="Python Code Execution"
+                                )
                             new_chunk = code[prev_len:]
-                            print(new_chunk, end="", flush=True)
+                            # Update the dynamic display with new content
+                            self.display_manager.update_content(block_id, new_chunk)
                             self._printed_code_len[block_id] = len(code)
 
                     elif tool_name == "execute_shell_command" and "command" in tool_input:
@@ -193,11 +347,17 @@ class PassionAgent(ReActAgent):
                         if len(command) > prev_len:
                              if prev_len == 0:
                                 print_formatted_text(HTML("    <ansigray>Command: </ansigray>"), end="")
+                                # Use the display manager for dynamic updates of shell commands
+                                self.display_manager.create_display(
+                                    block_id,
+                                    title="Shell Command Execution"
+                                )
                              new_chunk = command[prev_len:]
-                             print(new_chunk, end="", flush=True)
+                             # Update the dynamic display with new content
+                             self.display_manager.update_content(block_id, new_chunk)
                              self._printed_code_len[block_id] = len(command)
 
-                    # Stream Content for write_text_file
+                    # Stream Content for write_text_file with dynamic display
                     elif tool_name == "write_text_file" and "content" in tool_input:
                         file_content = tool_input["content"]
                         prev_len = self._printed_content_len.get(block_id, 0)
@@ -205,8 +365,17 @@ class PassionAgent(ReActAgent):
                             if prev_len == 0:
                                 print_formatted_text(HTML(f"    <ansigray>File Path: {tool_input.get('file_path', 'N/A')}</ansigray>\n"), end="")
                                 print_formatted_text(HTML("    <ansigray>Content:</ansigray>\n"), end="")
+                                # Use the display manager for dynamic updates
+                                self.display_manager.create_display(
+                                    block_id,
+                                    title=f"Writing to: {tool_input.get('file_path', 'unknown')}"
+                                )
+
                             new_chunk = file_content[prev_len:]
-                            print(new_chunk, end="", flush=True)
+
+                            # Update the dynamic display with new content
+                            self.display_manager.update_content(block_id, new_chunk)
+
                             self._printed_content_len[block_id] = len(file_content)
 
                     elif tool_input:
@@ -248,6 +417,9 @@ class PassionAgent(ReActAgent):
                             del self._printed_code_len[block_id]
                         if block_id in self._printed_content_len:
                             del self._printed_content_len[block_id]
+                        # Stop the dynamic display if it was running
+                        if block_id in self.display_manager.displays:
+                            self.display_manager.stop_display(block_id)
 
         # Handle streaming thinking text
         if current_thinking_text:
